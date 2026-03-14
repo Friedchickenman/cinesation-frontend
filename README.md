@@ -1,36 +1,49 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🎬 CineSation (시네세이션)
+> **"영화의 여운이 사라지기 전, 7일간의 기록"**
+> **"A 7-day record before the movie's lingering emotions fade away."**
 
-## Getting Started
+---
 
-First, run the development server:
+## 🌏 Language / 언어
+- [한국어(Korean)](#-korean)
+- [English](#-english)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+---
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🇰🇷 Korean
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 📌 프로젝트 개요
+**CineSation**은 영화 관람 후의 감동과 여운을 밀도 있게 나누기 위한 **타임 리밋(Time-limit)** 기반 영화 토론 플랫폼입니다. 7일이라는 제한된 시간 동안만 운영되는 '팝업' 커뮤니티를 통해 사용자들에게 몰입감 넘치는 소통 경험을 제공합니다.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### ✨ 핵심 기능
+- **TMDB API 연동**: 실시간 영화 검색 및 상세 정보 제공
+- **타임 리밋 토론방**: 목표 인원 충족 시 7일간 활성화 후 자동 종료 (Redis & Scheduler)
+- **실시간 소통**: WebSocket 기반의 끊김 없는 실시간 채팅
 
-## Learn More
+### 🛠 기술 스택
+- **Backend**: Java 17, Spring Boot 4.0.3, Gradle
+- **Database**: PostgreSQL, Redis
+- **Frontend**: Next.js 15, Tailwind CSS
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🇺🇸 English
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 📌 Project Overview
+**CineSation** is a **time-limited** movie discussion platform designed to share the lingering emotions after watching a movie. It operates for a fixed 7-day period to provide an immersive communication experience.
 
-## Deploy on Vercel
+### ✨ Key Features
+- **TMDB API Integration**: Real-time movie search and details.
+- **Time-Limited Rooms**: Activated for 7 days upon reaching the target participants, then auto-closed.
+- **Real-time Interaction**: Seamless live chat based on WebSocket.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 🛠 Tech Stack
+- **Backend**: Java 17, Spring Boot 4.0.3, Gradle
+- **Database**: PostgreSQL, Redis
+- **Frontend**: Next.js 15, Tailwind CSS
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## 👤 Developer
+- **Name**: Park Sung-jun (박성준)
+- **Goal**: Building a stable, scalable, and global-ready backend system.
