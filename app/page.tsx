@@ -1,13 +1,28 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
+    const router = useRouter();
     const [rooms, setRooms] = useState([]);
     const [error, setError] = useState("");
     const [isModalOpen, setIsModalOpen] = useState(false);
 
-    useEffect(() => {
+    const [newMovieId, setNewMovieId] = useState("");
+    const [newTitle, setNewTitle] = useState("");
+
+    // 예쁜 토스트 알림창을 위한 State
+    const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+    // 토스트 띄우기 함수 (3초 뒤 자동 사라짐)
+    const showToast = (message: string, type: "success" | "error") => {
+        setToast({ message, type });
+        setTimeout(() => setToast(null), 3000);
+    }; // 👈 성준님 코드에서 요 닫는 중괄호가 빠져있었네요!
+
+    // 방 목록 불러오기 함수
+    const loadRooms = () => {
         fetch("http://localhost:8080/api/rooms")
             .then((res) => {
                 if (!res.ok) throw new Error("서버 응답 에러");
@@ -15,7 +30,46 @@ export default function Home() {
             })
             .then((data) => setRooms(data))
             .catch((err) => setError(err.message));
+    };
+
+    useEffect(() => {
+        loadRooms();
     }, []);
+
+    // 방 개설 통신 함수
+    const handleCreateRoom = async () => {
+        if (!newMovieId.trim() || !newTitle.trim()) {
+            showToast("영화 ID와 토론방 제목을 모두 입력해 주세요!", "error");
+            return;
+        }
+
+        try {
+            const response = await fetch("http://localhost:8080/api/rooms", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    movieId: newMovieId,
+                    title: newTitle,
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || "방 생성에 실패했습니다.");
+            }
+
+            showToast("🎉 토론방이 성공적으로 개설되었습니다!", "success");
+            setIsModalOpen(false);
+            setNewMovieId("");
+            setNewTitle("");
+            loadRooms();
+
+        } catch (err: any) {
+            showToast(err.message, "error");
+        }
+    };
 
     return (
         <div className="flex flex-col gap-12 relative">
@@ -69,23 +123,17 @@ export default function Home() {
                         {rooms.map((room: any) => (
                             <div
                                 key={room.id}
+                                onClick={() => router.push(`/rooms/${room.id}`)}
                                 className="group relative flex flex-col bg-slate-800 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer hover:-translate-y-2"
                             >
-                                {/* 포스터 2:3 비율 영역 */}
                                 <div className="relative aspect-[2/3] bg-slate-800 overflow-hidden flex items-center justify-center">
                                     <span className="text-slate-600 font-medium">포스터 준비중</span>
-
-                                    {/* 어두운 그라데이션 (텍스트 가독성 확보) */}
                                     <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent opacity-90 transition-opacity group-hover:opacity-100" />
-
-                                    {/* 상단 진행중 배지 */}
                                     <div className="absolute top-3 left-3 z-10">
                     <span className="px-2.5 py-1 bg-blue-600/90 backdrop-blur-sm text-white text-[11px] font-bold rounded-md shadow-sm">
                       OPEN
                     </span>
                                     </div>
-
-                                    {/* 하단 텍스트 정보 */}
                                     <div className="absolute bottom-0 left-0 w-full p-4 flex flex-col justify-end z-10">
                                         <h3 className="text-lg font-bold text-white line-clamp-2 leading-tight mb-1 group-hover:text-blue-400 transition-colors">
                                             {room.title}
@@ -101,7 +149,7 @@ export default function Home() {
                 )}
             </section>
 
-            {/* 🌟 3. 모달 창 (이전 코드와 동일) */}
+            {/* 🌟 3. 모달 창 */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
@@ -112,17 +160,46 @@ export default function Home() {
                         <div className="p-5 space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">영화 ID (임시)</label>
-                                <input type="text" placeholder="예: m_ironman_03" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                                <input
+                                    type="text"
+                                    value={newMovieId}
+                                    onChange={(e) => setNewMovieId(e.target.value)}
+                                    placeholder="예: m_ironman_03"
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">토론방 제목</label>
-                                <input type="text" placeholder="토론하고 싶은 주제를 적어주세요!" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                                <input
+                                    type="text"
+                                    value={newTitle}
+                                    onChange={(e) => setNewTitle(e.target.value)}
+                                    placeholder="토론하고 싶은 주제를 적어주세요!"
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
                             </div>
                         </div>
                         <div className="flex justify-end gap-3 p-5 bg-gray-50 border-t border-gray-100">
                             <button onClick={() => setIsModalOpen(false)} className="px-5 py-2 text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 font-medium">취소</button>
-                            <button className="px-5 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 font-medium shadow-sm">방 개설하기</button>
+                            <button
+                                onClick={handleCreateRoom}
+                                className="px-5 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 font-medium shadow-sm"
+                            >
+                                방 개설하기
+                            </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 🌟 4. 토스트 알림창 */}
+            {toast && (
+                <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-bottom-5 fade-in duration-300">
+                    <div className={`px-6 py-3 rounded-full shadow-lg font-medium text-white flex items-center gap-2 ${
+                        toast.type === "success" ? "bg-gray-800" : "bg-red-600"
+                    }`}>
+                        <span>{toast.type === "success" ? "🎉" : "🚨"}</span>
+                        {toast.message}
                     </div>
                 </div>
             )}
