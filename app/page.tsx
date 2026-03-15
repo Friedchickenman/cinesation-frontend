@@ -9,19 +9,20 @@ export default function Home() {
     const [error, setError] = useState("");
     const [isModalOpen, setIsModalOpen] = useState(false);
 
-    const [newMovieId, setNewMovieId] = useState("");
     const [newTitle, setNewTitle] = useState("");
+    const [newMovieId, setNewMovieId] = useState("");
 
-    // 예쁜 토스트 알림창을 위한 State
+    const [searchQuery, setSearchQuery] = useState("");
+    const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [selectedMovie, setSelectedMovie] = useState<any>(null);
+
     const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
-    // 토스트 띄우기 함수 (3초 뒤 자동 사라짐)
     const showToast = (message: string, type: "success" | "error") => {
         setToast({ message, type });
         setTimeout(() => setToast(null), 3000);
-    }; // 👈 성준님 코드에서 요 닫는 중괄호가 빠져있었네요!
+    };
 
-    // 방 목록 불러오기 함수
     const loadRooms = () => {
         fetch("http://localhost:8080/api/rooms")
             .then((res) => {
@@ -36,21 +37,48 @@ export default function Home() {
         loadRooms();
     }, []);
 
-    // 방 개설 통신 함수
+    // 🌟 여기서부터 진짜 TMDB API 호출입니다!
+    const handleSearch = async () => {
+        if (!searchQuery.trim()) return;
+
+        try {
+            const apiKey = process.env.NEXT_PUBLIC_TMDB_API_KEY;
+            // TMDB 영화 검색 API (한국어로 설정)
+            const res = await fetch(
+                `https://api.themoviedb.org/3/search/movie?query=${searchQuery}&language=ko-KR&api_key=${apiKey}`
+            );
+            const data = await res.json();
+
+            // 검색 결과 State에 저장
+            setSearchResults(data.results || []);
+        } catch (err) {
+            console.error("TMDB 검색 에러:", err);
+            showToast("영화 검색 중 오류가 발생했습니다.", "error");
+        }
+    };
+
+    const closeModal = () => {
+        setIsModalOpen(false);
+        setSelectedMovie(null);
+        setSearchQuery("");
+        setSearchResults([]);
+        setNewTitle("");
+        setNewMovieId("");
+    };
+
     const handleCreateRoom = async () => {
-        if (!newMovieId.trim() || !newTitle.trim()) {
-            showToast("영화 ID와 토론방 제목을 모두 입력해 주세요!", "error");
+        // TMDB의 고유 영화 ID(숫자)를 서버로 보냅니다.
+        if (!newMovieId || !newTitle.trim()) {
+            showToast("영화와 토론방 제목을 모두 입력해 주세요!", "error");
             return;
         }
 
         try {
             const response = await fetch("http://localhost:8080/api/rooms", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    movieId: newMovieId,
+                    movieId: String(newMovieId), // 서버가 String을 원하므로 문자열로 변환
                     title: newTitle,
                 }),
             });
@@ -61,11 +89,8 @@ export default function Home() {
             }
 
             showToast("🎉 토론방이 성공적으로 개설되었습니다!", "success");
-            setIsModalOpen(false);
-            setNewMovieId("");
-            setNewTitle("");
+            closeModal();
             loadRooms();
-
         } catch (err: any) {
             showToast(err.message, "error");
         }
@@ -73,8 +98,6 @@ export default function Home() {
 
     return (
         <div className="flex flex-col gap-12 relative">
-
-            {/* 🌟 1. 메인 배너 (Hero Section) */}
             <section className="relative w-full bg-slate-900 rounded-3xl p-8 md:p-12 overflow-hidden shadow-2xl">
                 <div className="absolute top-0 right-0 -mt-10 -mr-10 w-96 h-96 bg-blue-600 rounded-full blur-[120px] opacity-30 pointer-events-none"></div>
                 <div className="absolute bottom-0 left-0 -mb-10 -ml-10 w-80 h-80 bg-purple-600 rounded-full blur-[100px] opacity-20 pointer-events-none"></div>
@@ -101,7 +124,6 @@ export default function Home() {
                 </div>
             </section>
 
-            {/* 🌟 2. 넷플릭스 스타일 카드 UI 영역 */}
             <section>
                 <div className="flex items-center justify-between mb-6">
                     <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
@@ -139,7 +161,7 @@ export default function Home() {
                                             {room.title}
                                         </h3>
                                         <p className="text-xs text-gray-300 truncate">
-                                            {room.movieId}
+                                            TMDB 영화 ID: {room.movieId}
                                         </p>
                                     </div>
                                 </div>
@@ -149,41 +171,129 @@ export default function Home() {
                 )}
             </section>
 
-            {/* 🌟 3. 모달 창 */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                        <div className="flex items-center justify-between p-5 border-b border-gray-100">
-                            <h3 className="text-xl font-bold text-gray-900">새 토론방 만들기</h3>
-                            <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors">✕</button>
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]">
+
+                        <div className="flex items-center justify-between p-5 border-b border-gray-100 shrink-0">
+                            <h3 className="text-xl font-bold text-gray-900">
+                                {selectedMovie ? "토론방 주제 정하기" : "영화 검색하기"}
+                            </h3>
+                            <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 transition-colors">✕</button>
                         </div>
-                        <div className="p-5 space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">영화 ID (임시)</label>
-                                <input
-                                    type="text"
-                                    value={newMovieId}
-                                    onChange={(e) => setNewMovieId(e.target.value)}
-                                    placeholder="예: m_ironman_03"
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">토론방 제목</label>
-                                <input
-                                    type="text"
-                                    value={newTitle}
-                                    onChange={(e) => setNewTitle(e.target.value)}
-                                    placeholder="토론하고 싶은 주제를 적어주세요!"
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                                />
-                            </div>
+
+                        <div className="p-5 overflow-y-auto">
+                            {!selectedMovie ? (
+                                <>
+                                    <div className="flex gap-2 mb-4">
+                                        <input
+                                            type="text"
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                                            placeholder="영화 제목을 검색해 보세요!"
+                                            className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50 focus:bg-white transition-colors"
+                                        />
+                                        <button
+                                            onClick={handleSearch}
+                                            className="px-5 py-2.5 bg-slate-800 text-white rounded-lg hover:bg-slate-700 font-medium transition-colors"
+                                        >
+                                            검색
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        {searchResults.map((movie: any) => (
+                                            <div
+                                                key={movie.id}
+                                                onClick={() => {
+                                                    setSelectedMovie(movie);
+                                                    setNewMovieId(movie.id);
+                                                }}
+                                                className="flex items-center gap-4 p-3 border border-gray-100 rounded-xl hover:bg-blue-50 hover:border-blue-200 cursor-pointer transition-all"
+                                            >
+                                                {/* 🌟 진짜 TMDB 포스터 이미지가 들어갑니다! */}
+                                                <div className="w-12 h-16 bg-slate-200 rounded overflow-hidden flex items-center justify-center shrink-0 shadow-sm border border-slate-200">
+                                                    {movie.poster_path ? (
+                                                        <img
+                                                            src={`https://image.tmdb.org/t/p/w200${movie.poster_path}`}
+                                                            alt={movie.title}
+                                                            className="w-full h-full object-cover"
+                                                        />
+                                                    ) : (
+                                                        <span className="text-xs text-gray-400">이미지 없음</span>
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-bold text-gray-900 leading-tight">{movie.title}</h4>
+                                                    <p className="text-sm text-gray-500 mt-1">
+                                                        {movie.release_date?.substring(0, 4)}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {searchResults.length === 0 && searchQuery && (
+                                            <div className="py-10 text-center text-gray-500">
+                                                검색 결과가 없습니다. 다시 검색해 보세요!
+                                            </div>
+                                        )}
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="space-y-6">
+                                    <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200 relative">
+                                        <button
+                                            onClick={() => { setSelectedMovie(null); setNewMovieId(""); }}
+                                            className="absolute top-3 right-4 text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors"
+                                        >
+                                            다른 영화 선택
+                                        </button>
+                                        {/* 🌟 선택 화면에도 진짜 포스터 띄우기 */}
+                                        <div className="w-16 h-24 bg-white rounded overflow-hidden flex items-center justify-center shrink-0 shadow-sm border border-slate-200">
+                                            {selectedMovie.poster_path ? (
+                                                <img
+                                                    src={`https://image.tmdb.org/t/p/w200${selectedMovie.poster_path}`}
+                                                    alt={selectedMovie.title}
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            ) : (
+                                                <span className="text-xs text-gray-400">No Image</span>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <span className="text-[11px] font-bold text-blue-600 mb-1 block tracking-wider">선택된 영화</span>
+                                            <h4 className="font-bold text-lg text-gray-900 leading-tight">{selectedMovie.title}</h4>
+                                            <p className="text-sm text-gray-500 mt-1">{selectedMovie.release_date?.substring(0, 4)}</p>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">어떤 주제로 토론할까요?</label>
+                                        <input
+                                            type="text"
+                                            value={newTitle}
+                                            onChange={(e) => setNewTitle(e.target.value)}
+                                            placeholder="예) 결말에 대한 여러분의 생각은?"
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50 focus:bg-white transition-colors"
+                                            autoFocus
+                                        />
+                                    </div>
+                                </div>
+                            )}
                         </div>
-                        <div className="flex justify-end gap-3 p-5 bg-gray-50 border-t border-gray-100">
-                            <button onClick={() => setIsModalOpen(false)} className="px-5 py-2 text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 font-medium">취소</button>
+
+                        <div className="flex justify-end gap-3 p-5 bg-gray-50 border-t border-gray-100 shrink-0">
+                            <button onClick={closeModal} className="px-5 py-2.5 text-gray-600 bg-white border border-gray-300 rounded-xl hover:bg-gray-100 font-medium transition-colors">
+                                취소
+                            </button>
                             <button
                                 onClick={handleCreateRoom}
-                                className="px-5 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 font-medium shadow-sm"
+                                disabled={!selectedMovie || !newTitle.trim()}
+                                className={`px-6 py-2.5 text-white rounded-xl font-medium shadow-sm transition-all ${
+                                    selectedMovie && newTitle.trim()
+                                        ? 'bg-blue-600 hover:bg-blue-700 hover:shadow-md'
+                                        : 'bg-gray-300 cursor-not-allowed'
+                                }`}
                             >
                                 방 개설하기
                             </button>
@@ -192,7 +302,6 @@ export default function Home() {
                 </div>
             )}
 
-            {/* 🌟 4. 토스트 알림창 */}
             {toast && (
                 <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-bottom-5 fade-in duration-300">
                     <div className={`px-6 py-3 rounded-full shadow-lg font-medium text-white flex items-center gap-2 ${
@@ -203,7 +312,6 @@ export default function Home() {
                     </div>
                 </div>
             )}
-
         </div>
     );
 }
