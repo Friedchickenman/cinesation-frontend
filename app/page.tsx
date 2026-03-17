@@ -26,17 +26,17 @@ export default function Home() {
     // 🌟 1. 방 목록을 불러올 때 TMDB 포스터도 같이 훔쳐(?)옵니다!
     const loadRooms = async () => {
         try {
-            // 1) 백엔드에서 방 목록 가져오기
             const res = await fetch("http://localhost:8080/api/rooms");
             if (!res.ok) throw new Error("서버 응답 에러");
             const data = await res.json();
 
+            // 👇 이 한 줄이 핵심입니다! 방 번호(id)가 큰 것(최신)부터 앞에 오도록 내림차순 정렬
+            const sortedData = data.sort((a: any, b: any) => b.id - a.id);
+
             const apiKey = process.env.NEXT_PUBLIC_TMDB_API_KEY;
 
-            // 2) 각 방의 movieId로 TMDB 포스터 주소 찾아오기
             const roomsWithPosters = await Promise.all(
-                data.map(async (room: any) => {
-                    // 예전에 만든 가짜 데이터(m_ 어쩌구)는 패스합니다
+                sortedData.map(async (room: any) => { // 👈 여기도 data 대신 sortedData로 변경!
                     if (!room.movieId || room.movieId.startsWith("m_")) return room;
 
                     try {
@@ -45,8 +45,6 @@ export default function Home() {
                         );
                         if (!tmdbRes.ok) return room;
                         const tmdbData = await tmdbRes.json();
-
-                        // 기존 방 데이터에 포스터 경로(poster_path)를 살짝 끼워 넣습니다
                         return { ...room, poster_path: tmdbData.poster_path };
                     } catch (e) {
                         return room;
