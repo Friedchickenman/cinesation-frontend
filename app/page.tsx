@@ -2,12 +2,19 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+// 🌟 1. signIn 함수를 추가로 불러옵니다! (모달 안에서 바로 로그인시키기 위해)
+import { useSession, signIn } from "next-auth/react";
 
 export default function Home() {
     const router = useRouter();
+    const { data: session } = useSession();
     const [rooms, setRooms] = useState([]);
     const [error, setError] = useState("");
+
+    // 모달창 상태 관리
     const [isModalOpen, setIsModalOpen] = useState(false);
+    // 🌟 2. 로그인 유도 모달창 상태를 새로 추가합니다!
+    const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
     const [newTitle, setNewTitle] = useState("");
     const [newMovieId, setNewMovieId] = useState("");
@@ -23,20 +30,17 @@ export default function Home() {
         setTimeout(() => setToast(null), 3000);
     };
 
-    // 🌟 1. 방 목록을 불러올 때 TMDB 포스터도 같이 훔쳐(?)옵니다!
     const loadRooms = async () => {
         try {
             const res = await fetch("http://localhost:8080/api/rooms");
             if (!res.ok) throw new Error("서버 응답 에러");
             const data = await res.json();
 
-            // 👇 이 한 줄이 핵심입니다! 방 번호(id)가 큰 것(최신)부터 앞에 오도록 내림차순 정렬
             const sortedData = data.sort((a: any, b: any) => b.id - a.id);
-
             const apiKey = process.env.NEXT_PUBLIC_TMDB_API_KEY;
 
             const roomsWithPosters = await Promise.all(
-                sortedData.map(async (room: any) => { // 👈 여기도 data 대신 sortedData로 변경!
+                sortedData.map(async (room: any) => {
                     if (!room.movieId || room.movieId.startsWith("m_")) return room;
 
                     try {
@@ -110,10 +114,19 @@ export default function Home() {
 
             showToast("🎉 토론방이 성공적으로 개설되었습니다!", "success");
             closeModal();
-            loadRooms(); // 방 만들고 나서 목록(과 포스터) 다시 불러오기!
+            loadRooms();
         } catch (err: any) {
             showToast(err.message, "error");
         }
+    };
+
+    // 🌟 3. 버튼을 눌렀을 때 실행되는 함수 수정 (토스트 대신 부드러운 모달창 열기!)
+    const handleOpenModal = () => {
+        if (!session) {
+            setIsLoginModalOpen(true); // 로그인 안 했으면 로그인 모달 띄우기
+            return;
+        }
+        setIsModalOpen(true); // 로그인 했으면 방 만들기 모달 띄우기
     };
 
     return (
@@ -123,20 +136,20 @@ export default function Home() {
                 <div className="absolute bottom-0 left-0 -mb-10 -ml-10 w-80 h-80 bg-purple-600 rounded-full blur-[100px] opacity-20 pointer-events-none"></div>
 
                 <div className="relative z-10 flex flex-col items-start gap-5">
-          <span className="inline-block px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 text-sm font-semibold border border-blue-400/20">
-            ⏳ 타임 리밋 무비 커뮤니티
-          </span>
+                    <span className="inline-block px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 text-sm font-semibold border border-blue-400/20">
+                        ⏳ 타임 리밋 무비 커뮤니티
+                    </span>
                     <h1 className="text-4xl md:text-5xl font-extrabold text-white tracking-tight leading-tight">
                         영화의 감동을 나누는 <br />
                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">
-              가장 완벽한 7일
-            </span>
+                            가장 완벽한 7일
+                        </span>
                     </h1>
                     <p className="text-slate-300 text-lg max-w-xl">
                         방금 본 영화의 여운이 가시지 않나요? 같은 영화를 본 사람들과 7일 동안만 열리는 비밀스러운 공간에서 과몰입 토론을 시작해 보세요.
                     </p>
                     <button
-                        onClick={() => setIsModalOpen(true)}
+                        onClick={handleOpenModal}
                         className="mt-2 px-7 py-3.5 bg-blue-600 hover:bg-blue-500 transition-colors text-white font-bold rounded-xl shadow-lg hover:shadow-blue-500/30 flex items-center gap-2"
                     >
                         <span>+ 새 토론방 만들기</span>
@@ -150,8 +163,8 @@ export default function Home() {
                         🔥 지금 뜨거운 토론방
                     </h2>
                     <span className="text-sm font-medium text-gray-500 cursor-pointer hover:text-gray-800 transition-colors">
-            전체 보기 →
-          </span>
+                        전체 보기 →
+                    </span>
                 </div>
 
                 {error ? (
@@ -170,7 +183,6 @@ export default function Home() {
                             >
                                 <div className="relative aspect-[2/3] bg-slate-800 overflow-hidden flex items-center justify-center">
 
-                                    {/* 🌟 2. 드디어 메인 카드에 넷플릭스 뺨치는 포스터가 뜹니다! */}
                                     {room.poster_path ? (
                                         <img
                                             src={`https://image.tmdb.org/t/p/w500${room.poster_path}`}
@@ -183,9 +195,9 @@ export default function Home() {
 
                                     <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent opacity-90 transition-opacity group-hover:opacity-100" />
                                     <div className="absolute top-3 left-3 z-10">
-                    <span className="px-2.5 py-1 bg-blue-600/90 backdrop-blur-sm text-white text-[11px] font-bold rounded-md shadow-sm">
-                      OPEN
-                    </span>
+                                        <span className="px-2.5 py-1 bg-blue-600/90 backdrop-blur-sm text-white text-[11px] font-bold rounded-md shadow-sm">
+                                            OPEN
+                                        </span>
                                     </div>
                                     <div className="absolute bottom-0 left-0 w-full p-4 flex flex-col justify-end z-10">
                                         <h3 className="text-lg font-bold text-white line-clamp-2 leading-tight mb-1 group-hover:text-blue-400 transition-colors">
@@ -199,7 +211,7 @@ export default function Home() {
                 )}
             </section>
 
-            {/* 모달 창 영역 (기존 코드와 동일) */}
+            {/* 기존 방 만들기 모달 창 영역 */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]">
@@ -322,6 +334,43 @@ export default function Home() {
                                 }`}
                             >
                                 방 개설하기
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 🌟 4. 로그인 필요 안내용 부드러운 모달창 추가! */}
+            {isLoginModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col border border-gray-100">
+                        <div className="p-8 text-center flex flex-col items-center">
+                            <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-5 text-3xl shadow-sm border border-blue-100">
+                                🔒
+                            </div>
+                            <h3 className="text-2xl font-bold text-gray-900 mb-2 tracking-tight">로그인이 필요합니다</h3>
+                            <p className="text-gray-500 mb-8 leading-relaxed">
+                                과몰입 토론방을 개설하려면<br />먼저 안전하게 로그인을 해주세요!
+                            </p>
+
+                            <button
+                                onClick={() => signIn("google")}
+                                className="w-full flex justify-center items-center gap-2.5 px-4 py-3.5 bg-white border border-gray-300 rounded-xl shadow-sm hover:bg-gray-50 hover:border-gray-400 transition-all font-bold text-gray-700 mb-3"
+                            >
+                                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                                </svg>
+                                Google로 계속하기
+                            </button>
+
+                            <button
+                                onClick={() => setIsLoginModalOpen(false)}
+                                className="w-full px-4 py-3 text-gray-500 font-semibold hover:bg-gray-50 rounded-xl transition-colors"
+                            >
+                                닫기
                             </button>
                         </div>
                     </div>
