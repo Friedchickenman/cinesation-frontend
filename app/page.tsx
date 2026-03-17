@@ -23,33 +23,56 @@ export default function Home() {
         setTimeout(() => setToast(null), 3000);
     };
 
-    const loadRooms = () => {
-        fetch("http://localhost:8080/api/rooms")
-            .then((res) => {
-                if (!res.ok) throw new Error("서버 응답 에러");
-                return res.json();
-            })
-            .then((data) => setRooms(data))
-            .catch((err) => setError(err.message));
+    // 🌟 1. 방 목록을 불러올 때 TMDB 포스터도 같이 훔쳐(?)옵니다!
+    const loadRooms = async () => {
+        try {
+            // 1) 백엔드에서 방 목록 가져오기
+            const res = await fetch("http://localhost:8080/api/rooms");
+            if (!res.ok) throw new Error("서버 응답 에러");
+            const data = await res.json();
+
+            const apiKey = process.env.NEXT_PUBLIC_TMDB_API_KEY;
+
+            // 2) 각 방의 movieId로 TMDB 포스터 주소 찾아오기
+            const roomsWithPosters = await Promise.all(
+                data.map(async (room: any) => {
+                    // 예전에 만든 가짜 데이터(m_ 어쩌구)는 패스합니다
+                    if (!room.movieId || room.movieId.startsWith("m_")) return room;
+
+                    try {
+                        const tmdbRes = await fetch(
+                            `https://api.themoviedb.org/3/movie/${room.movieId}?language=ko-KR&api_key=${apiKey}`
+                        );
+                        if (!tmdbRes.ok) return room;
+                        const tmdbData = await tmdbRes.json();
+
+                        // 기존 방 데이터에 포스터 경로(poster_path)를 살짝 끼워 넣습니다
+                        return { ...room, poster_path: tmdbData.poster_path };
+                    } catch (e) {
+                        return room;
+                    }
+                })
+            );
+
+            setRooms(roomsWithPosters as any);
+        } catch (err: any) {
+            setError(err.message);
+        }
     };
 
     useEffect(() => {
         loadRooms();
     }, []);
 
-    // 🌟 여기서부터 진짜 TMDB API 호출입니다!
     const handleSearch = async () => {
         if (!searchQuery.trim()) return;
 
         try {
             const apiKey = process.env.NEXT_PUBLIC_TMDB_API_KEY;
-            // TMDB 영화 검색 API (한국어로 설정)
             const res = await fetch(
                 `https://api.themoviedb.org/3/search/movie?query=${searchQuery}&language=ko-KR&api_key=${apiKey}`
             );
             const data = await res.json();
-
-            // 검색 결과 State에 저장
             setSearchResults(data.results || []);
         } catch (err) {
             console.error("TMDB 검색 에러:", err);
@@ -67,7 +90,6 @@ export default function Home() {
     };
 
     const handleCreateRoom = async () => {
-        // TMDB의 고유 영화 ID(숫자)를 서버로 보냅니다.
         if (!newMovieId || !newTitle.trim()) {
             showToast("영화와 토론방 제목을 모두 입력해 주세요!", "error");
             return;
@@ -78,7 +100,7 @@ export default function Home() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    movieId: String(newMovieId), // 서버가 String을 원하므로 문자열로 변환
+                    movieId: String(newMovieId),
                     title: newTitle,
                 }),
             });
@@ -90,7 +112,7 @@ export default function Home() {
 
             showToast("🎉 토론방이 성공적으로 개설되었습니다!", "success");
             closeModal();
-            loadRooms();
+            loadRooms(); // 방 만들고 나서 목록(과 포스터) 다시 불러오기!
         } catch (err: any) {
             showToast(err.message, "error");
         }
@@ -149,7 +171,18 @@ export default function Home() {
                                 className="group relative flex flex-col bg-slate-800 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer hover:-translate-y-2"
                             >
                                 <div className="relative aspect-[2/3] bg-slate-800 overflow-hidden flex items-center justify-center">
-                                    <span className="text-slate-600 font-medium">포스터 준비중</span>
+
+                                    {/* 🌟 2. 드디어 메인 카드에 넷플릭스 뺨치는 포스터가 뜹니다! */}
+                                    {room.poster_path ? (
+                                        <img
+                                            src={`https://image.tmdb.org/t/p/w500${room.poster_path}`}
+                                            alt={room.title}
+                                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                        />
+                                    ) : (
+                                        <span className="text-slate-600 font-medium text-sm">포스터 없음</span>
+                                    )}
+
                                     <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent opacity-90 transition-opacity group-hover:opacity-100" />
                                     <div className="absolute top-3 left-3 z-10">
                     <span className="px-2.5 py-1 bg-blue-600/90 backdrop-blur-sm text-white text-[11px] font-bold rounded-md shadow-sm">
@@ -160,9 +193,6 @@ export default function Home() {
                                         <h3 className="text-lg font-bold text-white line-clamp-2 leading-tight mb-1 group-hover:text-blue-400 transition-colors">
                                             {room.title}
                                         </h3>
-                                        <p className="text-xs text-gray-300 truncate">
-                                            TMDB 영화 ID: {room.movieId}
-                                        </p>
                                     </div>
                                 </div>
                             </div>
@@ -171,10 +201,10 @@ export default function Home() {
                 )}
             </section>
 
+            {/* 모달 창 영역 (기존 코드와 동일) */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]">
-
                         <div className="flex items-center justify-between p-5 border-b border-gray-100 shrink-0">
                             <h3 className="text-xl font-bold text-gray-900">
                                 {selectedMovie ? "토론방 주제 정하기" : "영화 검색하기"}
@@ -212,7 +242,6 @@ export default function Home() {
                                                 }}
                                                 className="flex items-center gap-4 p-3 border border-gray-100 rounded-xl hover:bg-blue-50 hover:border-blue-200 cursor-pointer transition-all"
                                             >
-                                                {/* 🌟 진짜 TMDB 포스터 이미지가 들어갑니다! */}
                                                 <div className="w-12 h-16 bg-slate-200 rounded overflow-hidden flex items-center justify-center shrink-0 shadow-sm border border-slate-200">
                                                     {movie.poster_path ? (
                                                         <img
@@ -248,7 +277,6 @@ export default function Home() {
                                         >
                                             다른 영화 선택
                                         </button>
-                                        {/* 🌟 선택 화면에도 진짜 포스터 띄우기 */}
                                         <div className="w-16 h-24 bg-white rounded overflow-hidden flex items-center justify-center shrink-0 shadow-sm border border-slate-200">
                                             {selectedMovie.poster_path ? (
                                                 <img
