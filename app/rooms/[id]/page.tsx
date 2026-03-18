@@ -20,11 +20,10 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
     const [messages, setMessages] = useState<any[]>([]);
     const [inputMessage, setInputMessage] = useState("");
 
-    // 🌟 스크롤 제어를 위한 Ref와 상태들 추가
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const chatContainerRef = useRef<HTMLDivElement>(null);
-    const [isAutoScroll, setIsAutoScroll] = useState(true); // 자동 스크롤 여부
-    const [showNewMessageBtn, setShowNewMessageBtn] = useState(false); // 새 메시지 버튼 표시 여부
+    const [isAutoScroll, setIsAutoScroll] = useState(true);
+    const [showNewMessageBtn, setShowNewMessageBtn] = useState(false);
     const hasEntered = useRef(false);
 
     useEffect(() => {
@@ -108,33 +107,45 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         stompClient.activate();
         setClient(stompClient);
 
+        // 🌟 방을 나갈 때(컴포넌트 언마운트) 실행되는 클린업 함수
         return () => {
+            // 연결이 되어 있고 로그인 상태라면 "LEAVE" 메시지 발송!
+            if (stompClient.connected && session?.user?.name) {
+                const now = new Date();
+                const timeString = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+
+                stompClient.publish({
+                    destination: "/pub/chat/message",
+                    body: JSON.stringify({
+                        roomId: Number(roomId),
+                        sender: session.user.name,
+                        content: "",
+                        time: timeString,
+                        type: "LEAVE" // 👈 퇴장 꼬리표
+                    }),
+                });
+            }
+            // 메시지 발송 후 웹소켓 연결 종료
             stompClient.deactivate();
         };
     }, [roomId, session]);
 
-    // 🌟 스크롤 이벤트 핸들러: 유저가 스크롤을 위로 올렸는지 감지
     const handleScroll = () => {
         if (!chatContainerRef.current) return;
         const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
 
-        // 스크롤이 맨 아래에서 100px 이내로 떨어져 있으면 "맨 아래"로 간주
         const isBottom = scrollHeight - scrollTop - clientHeight < 100;
         setIsAutoScroll(isBottom);
 
-        // 맨 아래로 다시 내려오면 새 메시지 버튼 숨기기
         if (isBottom) {
             setShowNewMessageBtn(false);
         }
     };
 
-    // 🌟 새 메시지가 추가될 때의 처리
     useEffect(() => {
         if (isAutoScroll) {
-            // 스크롤이 맨 아래면 새 메시지가 왔을 때 자동으로 내려줌
             messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
         } else {
-            // 위로 스크롤해서 옛날 글을 보고 있는데 새 메시지가 오면 버튼을 띄움
             setShowNewMessageBtn(true);
         }
     }, [messages]);
@@ -159,7 +170,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         });
 
         setInputMessage("");
-        // 🌟 내가 메시지를 보냈을 때는 무조건 화면을 맨 아래로!
         setIsAutoScroll(true);
         setShowNewMessageBtn(false);
     };
@@ -172,7 +182,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         });
     };
 
-    // 🌟 새 메시지 버튼 클릭 시 실행할 함수
     const scrollToBottom = () => {
         setIsAutoScroll(true);
         setShowNewMessageBtn(false);
@@ -232,7 +241,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
             </span>
                     </div>
 
-                    {/* 🌟 스크롤 감지를 위해 onScroll 추가 및 ref 연결 */}
                     <div
                         ref={chatContainerRef}
                         onScroll={handleScroll}
@@ -244,7 +252,9 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                             </div>
                         ) : (
                             messages.map((msg, idx) => {
-                                if (msg.type === "ENTER") {
+
+                                // 🌟 입장(ENTER)이거나 퇴장(LEAVE)일 때 모두 가운데 시스템 메시지로 표시!
+                                if (msg.type === "ENTER" || msg.type === "LEAVE") {
                                     return (
                                         <div key={idx} className="flex justify-center my-3">
                       <span className="bg-slate-800/80 backdrop-blur-sm text-white text-xs font-semibold px-5 py-2 rounded-full shadow-sm animate-in fade-in zoom-in duration-300">
@@ -281,7 +291,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                         <div ref={messagesEndRef} />
                     </div>
 
-                    {/* 🌟 유저가 스크롤을 올렸을 때 뜨는 '새 메시지' 버튼 */}
                     {showNewMessageBtn && (
                         <div className="absolute bottom-24 left-0 w-full flex justify-center z-30 animate-in slide-in-from-bottom-2 fade-in duration-200">
                             <button
