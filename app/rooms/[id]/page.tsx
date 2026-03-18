@@ -24,7 +24,10 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
     const chatContainerRef = useRef<HTMLDivElement>(null);
     const [isAutoScroll, setIsAutoScroll] = useState(true);
     const [showNewMessageBtn, setShowNewMessageBtn] = useState(false);
+
     const hasEntered = useRef(false);
+    // 🌟 [추가 1] 처음 로딩인지 확인하는 상태값
+    const isFirstLoad = useRef(true);
 
     useEffect(() => {
         const fetchRoomData = async () => {
@@ -99,17 +102,12 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                     hasEntered.current = true;
                 }
             },
-            onStompError: (frame) => {
-                console.error("Broker 에러: " + frame.headers["message"]);
-            },
         });
 
         stompClient.activate();
         setClient(stompClient);
 
-        // 🌟 방을 나갈 때(컴포넌트 언마운트) 실행되는 클린업 함수
         return () => {
-            // 연결이 되어 있고 로그인 상태라면 "LEAVE" 메시지 발송!
             if (stompClient.connected && session?.user?.name) {
                 const now = new Date();
                 const timeString = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
@@ -121,11 +119,10 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                         sender: session.user.name,
                         content: "",
                         time: timeString,
-                        type: "LEAVE" // 👈 퇴장 꼬리표
+                        type: "LEAVE"
                     }),
                 });
             }
-            // 메시지 발송 후 웹소켓 연결 종료
             stompClient.deactivate();
         };
     }, [roomId, session]);
@@ -142,13 +139,21 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         }
     };
 
+    // 🌟 [수정 1] 스크롤 점프 분기 처리
     useEffect(() => {
-        if (isAutoScroll) {
-            messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-        } else {
-            setShowNewMessageBtn(true);
+        if (messages.length > 0) {
+            if (isFirstLoad.current) {
+                // 처음 로드될 때는 순간이동 (auto)
+                messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+                isFirstLoad.current = false;
+            } else if (isAutoScroll) {
+                // 그 이후 새 메시지는 부드럽게 (smooth)
+                messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+            } else {
+                setShowNewMessageBtn(true);
+            }
         }
-    }, [messages]);
+    }, [messages, isAutoScroll]);
 
     const handleSendMessage = () => {
         if (!inputMessage.trim() || !client || !client.connected || !session) return;
@@ -182,6 +187,28 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         });
     };
 
+    // 🌟 [추가 2] 채팅 내역 .txt 파일로 저장하는 마법의 함수!
+    const handleExportChat = () => {
+        if (messages.length === 0) return alert("저장할 대화 내역이 없습니다.");
+
+        // 채팅 데이터를 텍스트 포맷으로 예쁘게 깎아줍니다.
+        const chatText = messages.map(msg => {
+            if (msg.type === "ENTER" || msg.type === "LEAVE") {
+                return `--- ${msg.content} ---`;
+            }
+            return `[${msg.time || '시간없음'}] ${msg.sender}: ${msg.content}`;
+        }).join('\n');
+
+        // 메모장 파일(.txt)로 변환해서 다운로드 실행!
+        const blob = new Blob([chatText], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `CineSation_방${roomId}_과몰입기록.txt`;
+        link.click();
+        URL.revokeObjectURL(url);
+    };
+
     const scrollToBottom = () => {
         setIsAutoScroll(true);
         setShowNewMessageBtn(false);
@@ -194,9 +221,15 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                 <button onClick={() => router.back()} className="text-sm font-bold text-gray-500 hover:text-gray-900 flex items-center gap-2 transition-colors">
                     ← 메인으로 돌아가기
                 </button>
-                <button onClick={handleCopyLink} className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all ${isCopied ? "bg-green-100 text-green-700 shadow-sm" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 shadow-sm"}`}>
-                    {isCopied ? <><span>✅</span> 복사 완료!</> : <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>공유하기</>}
-                </button>
+                <div className="flex gap-2">
+                    {/* 🌟 [추가 3] 채팅 기록 저장 버튼 */}
+                    <button onClick={handleExportChat} className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 shadow-sm transition-all">
+                        <span>💾</span> 기록 저장
+                    </button>
+                    <button onClick={handleCopyLink} className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all ${isCopied ? "bg-green-100 text-green-700 shadow-sm" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 shadow-sm"}`}>
+                        {isCopied ? <><span>✅</span> 복사 완료!</> : <><span>🔗</span> 공유하기</>}
+                    </button>
+                </div>
             </div>
 
             {isLoading ? (
@@ -252,8 +285,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                             </div>
                         ) : (
                             messages.map((msg, idx) => {
-
-                                // 🌟 입장(ENTER)이거나 퇴장(LEAVE)일 때 모두 가운데 시스템 메시지로 표시!
                                 if (msg.type === "ENTER" || msg.type === "LEAVE") {
                                     return (
                                         <div key={idx} className="flex justify-center my-3">
