@@ -21,6 +21,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
     const [inputMessage, setInputMessage] = useState("");
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
+    // 1. 방 정보 불러오기
     useEffect(() => {
         const fetchRoomData = async () => {
             try {
@@ -49,6 +50,26 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         fetchRoomData();
     }, [roomId]);
 
+    // 🌟 2. [새로 추가된 기능] 방에 들어올 때 과거 채팅 내역 싹 다 불러오기!
+    useEffect(() => {
+        const fetchChatHistory = async () => {
+            if (!roomId) return;
+            try {
+                // 백엔드에 새로 뚫어둔 API로 요청을 보냅니다.
+                const res = await fetch(`http://localhost:8080/api/rooms/${roomId}/chats`);
+                if (res.ok) {
+                    const history = await res.json();
+                    // 빈 배열이었던 messages에 과거 내역을 꽉꽉 채워줍니다!
+                    setMessages(history);
+                }
+            } catch (err) {
+                console.error("채팅 내역을 불러오는데 실패했습니다.", err);
+            }
+        };
+        fetchChatHistory();
+    }, [roomId]);
+
+    // 3. 웹소켓(STOMP) 연결 및 실시간 메시지 수신
     useEffect(() => {
         if (!roomId) return;
 
@@ -58,6 +79,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
             onConnect: () => {
                 stompClient.subscribe(`/sub/chat/room/${roomId}`, (message) => {
                     const receivedMsg = JSON.parse(message.body);
+                    // 실시간으로 날아온 건 예전 내역들 맨 뒤에 추가해 줍니다!
                     setMessages((prev) => [...prev, receivedMsg]);
                 });
             },
@@ -74,15 +96,15 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         };
     }, [roomId]);
 
+    // 채팅 스크롤 자동 하단 고정
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
-    // 🌟 메시지 전송 시 "현재 시간"도 같이 보냅니다!
+    // 메시지 전송 로직
     const handleSendMessage = () => {
         if (!inputMessage.trim() || !client || !client.connected || !session) return;
 
-        // 한국 시간 기준으로 오전/오후 00:00 포맷 만들기
         const now = new Date();
         const timeString = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
 
@@ -90,7 +112,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
             roomId: Number(roomId),
             sender: session.user?.name || "익명 유저",
             content: inputMessage.trim(),
-            time: timeString, // 👈 추가된 시간 데이터!
+            time: timeString,
         };
 
         client.publish({
@@ -183,13 +205,11 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                                                 {msg.content}
                                             </div>
 
-                                            {/* 🌟 말풍선 아래에 시간 표시 추가! */}
                                             {msg.time && (
                                                 <span className={`text-[10px] text-gray-400 mt-1 block ${isMe ? 'mr-1 text-right' : 'ml-1'}`}>
                           {msg.time}
                         </span>
                                             )}
-
                                         </div>
                                     </div>
                                 );
