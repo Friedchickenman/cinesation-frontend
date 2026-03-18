@@ -22,11 +22,15 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const chatContainerRef = useRef<HTMLDivElement>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
     const [isAutoScroll, setIsAutoScroll] = useState(true);
     const [showNewMessageBtn, setShowNewMessageBtn] = useState(false);
 
+    const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
+    const typingTimeouts = useRef<{ [key: string]: NodeJS.Timeout }>({});
+
     const hasEntered = useRef(false);
-    // 🌟 [추가 1] 처음 로딩인지 확인하는 상태값
     const isFirstLoad = useRef(true);
 
     useEffect(() => {
@@ -82,7 +86,38 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
             onConnect: () => {
                 stompClient.subscribe(`/sub/chat/room/${roomId}`, (message) => {
                     const receivedMsg = JSON.parse(message.body);
+
+                    if (receivedMsg.type === "TYPING") {
+                        if (receivedMsg.sender !== session?.user?.name) {
+                            setTypingUsers(prev => {
+                                const newSet = new Set(prev);
+                                newSet.add(receivedMsg.sender);
+                                return newSet;
+                            });
+
+                            if (typingTimeouts.current[receivedMsg.sender]) {
+                                clearTimeout(typingTimeouts.current[receivedMsg.sender]);
+                            }
+                            typingTimeouts.current[receivedMsg.sender] = setTimeout(() => {
+                                setTypingUsers(prev => {
+                                    const newSet = new Set(prev);
+                                    newSet.delete(receivedMsg.sender);
+                                    return newSet;
+                                });
+                            }, 2000);
+                        }
+                        return;
+                    }
+
                     setMessages((prev) => [...prev, receivedMsg]);
+
+                    if (receivedMsg.type === "TALK") {
+                        setTypingUsers(prev => {
+                            const newSet = new Set(prev);
+                            newSet.delete(receivedMsg.sender);
+                            return newSet;
+                        });
+                    }
                 });
 
                 if (!hasEntered.current && session?.user?.name) {
@@ -139,21 +174,49 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         }
     };
 
-    // 🌟 [수정 1] 스크롤 점프 분기 처리
     useEffect(() => {
         if (messages.length > 0) {
             if (isFirstLoad.current) {
-                // 처음 로드될 때는 순간이동 (auto)
                 messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
                 isFirstLoad.current = false;
             } else if (isAutoScroll) {
-                // 그 이후 새 메시지는 부드럽게 (smooth)
                 messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
             } else {
                 setShowNewMessageBtn(true);
             }
         }
     }, [messages, isAutoScroll]);
+
+    const handleTyping = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        setInputMessage(e.target.value);
+
+        if (textareaRef.current) {
+            textareaRef.current.style.height = "auto";
+            textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
+        }
+
+        if (client?.connected && session?.user?.name && e.target.value.trim() !== "") {
+            client.publish({
+                destination: "/pub/chat/message",
+                body: JSON.stringify({
+                    roomId: Number(roomId),
+                    sender: session.user.name,
+                    content: "",
+                    time: "",
+                    type: "TYPING"
+                }),
+            });
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (e.nativeEvent.isComposing) return; // 한글 조합 중일 때 엔터 씹힘 방지
+
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSendMessage();
+        }
+    };
 
     const handleSendMessage = () => {
         if (!inputMessage.trim() || !client || !client.connected || !session) return;
@@ -177,6 +240,10 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         setInputMessage("");
         setIsAutoScroll(true);
         setShowNewMessageBtn(false);
+
+        if (textareaRef.current) {
+            textareaRef.current.style.height = "52px";
+        }
     };
 
     const handleCopyLink = () => {
@@ -187,11 +254,9 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         });
     };
 
-    // 🌟 [추가 2] 채팅 내역 .txt 파일로 저장하는 마법의 함수!
     const handleExportChat = () => {
         if (messages.length === 0) return alert("저장할 대화 내역이 없습니다.");
 
-        // 채팅 데이터를 텍스트 포맷으로 예쁘게 깎아줍니다.
         const chatText = messages.map(msg => {
             if (msg.type === "ENTER" || msg.type === "LEAVE") {
                 return `--- ${msg.content} ---`;
@@ -199,7 +264,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
             return `[${msg.time || '시간없음'}] ${msg.sender}: ${msg.content}`;
         }).join('\n');
 
-        // 메모장 파일(.txt)로 변환해서 다운로드 실행!
         const blob = new Blob([chatText], { type: 'text/plain;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -222,7 +286,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                     ← 메인으로 돌아가기
                 </button>
                 <div className="flex gap-2">
-                    {/* 🌟 [추가 3] 채팅 기록 저장 버튼 */}
                     <button onClick={handleExportChat} className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 shadow-sm transition-all">
                         <span>💾</span> 기록 저장
                     </button>
@@ -269,9 +332,9 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                     <div className="bg-gray-50 border-b border-gray-200 px-6 py-4 flex items-center justify-between shrink-0 z-20">
                         <h3 className="font-bold text-gray-800 flex items-center gap-2"><span>💬</span> 실시간 과몰입 채팅</h3>
                         <span className={`text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5 ${client?.connected ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${client?.connected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
+                            <span className={`w-1.5 h-1.5 rounded-full ${client?.connected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
                             {client?.connected ? "연결됨" : "연결 중..."}
-            </span>
+                        </span>
                     </div>
 
                     <div
@@ -288,9 +351,9 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                                 if (msg.type === "ENTER" || msg.type === "LEAVE") {
                                     return (
                                         <div key={idx} className="flex justify-center my-3">
-                      <span className="bg-slate-800/80 backdrop-blur-sm text-white text-xs font-semibold px-5 py-2 rounded-full shadow-sm animate-in fade-in zoom-in duration-300">
-                        {msg.content}
-                      </span>
+                                            <span className="bg-slate-800/80 backdrop-blur-sm text-white text-xs font-semibold px-5 py-2 rounded-full shadow-sm animate-in fade-in zoom-in duration-300">
+                                                {msg.content}
+                                            </span>
                                         </div>
                                     );
                                 }
@@ -303,22 +366,41 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                                             {isMe ? "😎" : "🍿"}
                                         </div>
                                         <div className={`flex flex-col ${isMe ? 'items-end' : ''}`}>
-                      <span className={`text-xs font-semibold text-gray-500 mb-1.5 block ${isMe ? 'mr-1' : 'ml-1'}`}>
-                        {msg.sender}
-                      </span>
-                                            <div className={`py-2.5 px-4 rounded-2xl shadow-sm inline-block max-w-lg leading-relaxed ${isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white border border-gray-200 text-gray-800 rounded-tl-none'}`}>
+                                            <span className={`text-xs font-semibold text-gray-500 mb-1.5 block ${isMe ? 'mr-1' : 'ml-1'}`}>
+                                                {msg.sender}
+                                            </span>
+                                            {/* whitespace-pre-wrap 추가로 줄바꿈 적용 */}
+                                            <div className={`py-2.5 px-4 rounded-2xl shadow-sm inline-block max-w-lg leading-relaxed whitespace-pre-wrap ${isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white border border-gray-200 text-gray-800 rounded-tl-none'}`}>
                                                 {msg.content}
                                             </div>
                                             {msg.time && (
                                                 <span className={`text-[10px] text-gray-400 mt-1 block ${isMe ? 'mr-1 text-right' : 'ml-1'}`}>
-                          {msg.time}
-                        </span>
+                                                    {msg.time}
+                                                </span>
                                             )}
                                         </div>
                                     </div>
                                 );
                             })
                         )}
+
+                        {/* 타이핑 인디케이터 */}
+                        {typingUsers.size > 0 && (
+                            <div className="flex gap-3 mb-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                                <div className="w-10 h-10 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center text-lg shrink-0 shadow-sm">🍿</div>
+                                <div className="flex flex-col">
+                                    <span className="text-xs font-semibold text-gray-500 mb-1 ml-1">
+                                        {Array.from(typingUsers).join(", ")}님이 입력 중...
+                                    </span>
+                                    <div className="py-3 px-5 rounded-2xl bg-white border border-gray-200 rounded-tl-none shadow-sm flex items-center gap-1.5 w-fit">
+                                        <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }}></span>
+                                        <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }}></span>
+                                        <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }}></span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         <div ref={messagesEndRef} />
                     </div>
 
@@ -334,20 +416,22 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                     )}
 
                     <div className="p-4 bg-white border-t border-gray-200 shrink-0 z-20">
-                        <div className="flex gap-3">
-                            <input
-                                type="text"
+                        <div className="flex items-end gap-3">
+                            <textarea
+                                ref={textareaRef}
                                 value={inputMessage}
-                                onChange={(e) => setInputMessage(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                                placeholder={session ? "과몰입 멘트를 입력해 주세요..." : "로그인 후 참여 가능합니다."}
+                                onChange={handleTyping}
+                                onKeyDown={handleKeyDown}
+                                placeholder={session ? "과몰입 멘트를 입력해 주세요... (Shift+Enter로 줄바꿈)" : "로그인 후 참여 가능합니다."}
                                 disabled={!session || !client?.connected}
-                                className="flex-1 px-5 py-3.5 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                                rows={1}
+                                style={{ height: "52px", minHeight: "52px" }}
+                                className="flex-1 px-5 py-3.5 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 resize-none overflow-y-auto leading-relaxed"
                             />
                             <button
                                 onClick={handleSendMessage}
                                 disabled={!session || !client?.connected || !inputMessage.trim()}
-                                className="px-7 py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl disabled:opacity-50 transition-colors"
+                                className="px-7 py-3.5 h-[52px] bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl disabled:opacity-50 transition-colors shrink-0"
                             >
                                 전송
                             </button>
