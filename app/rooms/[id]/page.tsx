@@ -19,9 +19,14 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
     const [client, setClient] = useState<Client | null>(null);
     const [messages, setMessages] = useState<any[]>([]);
     const [inputMessage, setInputMessage] = useState("");
-    const messagesEndRef = useRef<HTMLDivElement>(null);
 
-    // 1. 방 정보 불러오기
+    // 🌟 스크롤 제어를 위한 Ref와 상태들 추가
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+    const chatContainerRef = useRef<HTMLDivElement>(null);
+    const [isAutoScroll, setIsAutoScroll] = useState(true); // 자동 스크롤 여부
+    const [showNewMessageBtn, setShowNewMessageBtn] = useState(false); // 새 메시지 버튼 표시 여부
+    const hasEntered = useRef(false);
+
     useEffect(() => {
         const fetchRoomData = async () => {
             try {
@@ -50,16 +55,13 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         fetchRoomData();
     }, [roomId]);
 
-    // 🌟 2. [새로 추가된 기능] 방에 들어올 때 과거 채팅 내역 싹 다 불러오기!
     useEffect(() => {
         const fetchChatHistory = async () => {
             if (!roomId) return;
             try {
-                // 백엔드에 새로 뚫어둔 API로 요청을 보냅니다.
                 const res = await fetch(`http://localhost:8080/api/rooms/${roomId}/chats`);
                 if (res.ok) {
                     const history = await res.json();
-                    // 빈 배열이었던 messages에 과거 내역을 꽉꽉 채워줍니다!
                     setMessages(history);
                 }
             } catch (err) {
@@ -69,7 +71,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         fetchChatHistory();
     }, [roomId]);
 
-    // 3. 웹소켓(STOMP) 연결 및 실시간 메시지 수신
     useEffect(() => {
         if (!roomId) return;
 
@@ -79,9 +80,25 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
             onConnect: () => {
                 stompClient.subscribe(`/sub/chat/room/${roomId}`, (message) => {
                     const receivedMsg = JSON.parse(message.body);
-                    // 실시간으로 날아온 건 예전 내역들 맨 뒤에 추가해 줍니다!
                     setMessages((prev) => [...prev, receivedMsg]);
                 });
+
+                if (!hasEntered.current && session?.user?.name) {
+                    const now = new Date();
+                    const timeString = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+
+                    stompClient.publish({
+                        destination: "/pub/chat/message",
+                        body: JSON.stringify({
+                            roomId: Number(roomId),
+                            sender: session.user.name,
+                            content: "",
+                            time: timeString,
+                            type: "ENTER"
+                        }),
+                    });
+                    hasEntered.current = true;
+                }
             },
             onStompError: (frame) => {
                 console.error("Broker 에러: " + frame.headers["message"]);
@@ -94,14 +111,34 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         return () => {
             stompClient.deactivate();
         };
-    }, [roomId]);
+    }, [roomId, session]);
 
-    // 채팅 스크롤 자동 하단 고정
+    // 🌟 스크롤 이벤트 핸들러: 유저가 스크롤을 위로 올렸는지 감지
+    const handleScroll = () => {
+        if (!chatContainerRef.current) return;
+        const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+
+        // 스크롤이 맨 아래에서 100px 이내로 떨어져 있으면 "맨 아래"로 간주
+        const isBottom = scrollHeight - scrollTop - clientHeight < 100;
+        setIsAutoScroll(isBottom);
+
+        // 맨 아래로 다시 내려오면 새 메시지 버튼 숨기기
+        if (isBottom) {
+            setShowNewMessageBtn(false);
+        }
+    };
+
+    // 🌟 새 메시지가 추가될 때의 처리
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        if (isAutoScroll) {
+            // 스크롤이 맨 아래면 새 메시지가 왔을 때 자동으로 내려줌
+            messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        } else {
+            // 위로 스크롤해서 옛날 글을 보고 있는데 새 메시지가 오면 버튼을 띄움
+            setShowNewMessageBtn(true);
+        }
     }, [messages]);
 
-    // 메시지 전송 로직
     const handleSendMessage = () => {
         if (!inputMessage.trim() || !client || !client.connected || !session) return;
 
@@ -113,6 +150,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
             sender: session.user?.name || "익명 유저",
             content: inputMessage.trim(),
             time: timeString,
+            type: "TALK"
         };
 
         client.publish({
@@ -121,6 +159,9 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         });
 
         setInputMessage("");
+        // 🌟 내가 메시지를 보냈을 때는 무조건 화면을 맨 아래로!
+        setIsAutoScroll(true);
+        setShowNewMessageBtn(false);
     };
 
     const handleCopyLink = () => {
@@ -131,8 +172,15 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         });
     };
 
+    // 🌟 새 메시지 버튼 클릭 시 실행할 함수
+    const scrollToBottom = () => {
+        setIsAutoScroll(true);
+        setShowNewMessageBtn(false);
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
+
     return (
-        <div className="max-w-5xl mx-auto py-8 animate-in fade-in duration-500">
+        <div className="max-w-5xl mx-auto py-8 animate-in fade-in duration-500 relative">
             <div className="flex justify-between items-center mb-6 px-2">
                 <button onClick={() => router.back()} className="text-sm font-bold text-gray-500 hover:text-gray-900 flex items-center gap-2 transition-colors">
                     ← 메인으로 돌아가기
@@ -174,8 +222,9 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
             )}
 
             {!isLoading && !error && (
-                <div className="flex flex-col h-[600px] bg-white border border-gray-200 rounded-3xl shadow-sm overflow-hidden">
-                    <div className="bg-gray-50 border-b border-gray-200 px-6 py-4 flex items-center justify-between shrink-0">
+                <div className="flex flex-col h-[600px] bg-white border border-gray-200 rounded-3xl shadow-sm overflow-hidden relative">
+
+                    <div className="bg-gray-50 border-b border-gray-200 px-6 py-4 flex items-center justify-between shrink-0 z-20">
                         <h3 className="font-bold text-gray-800 flex items-center gap-2"><span>💬</span> 실시간 과몰입 채팅</h3>
                         <span className={`text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5 ${client?.connected ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
               <span className={`w-1.5 h-1.5 rounded-full ${client?.connected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
@@ -183,13 +232,28 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
             </span>
                     </div>
 
-                    <div className="flex-1 p-6 overflow-y-auto bg-slate-50/50 flex flex-col gap-5">
+                    {/* 🌟 스크롤 감지를 위해 onScroll 추가 및 ref 연결 */}
+                    <div
+                        ref={chatContainerRef}
+                        onScroll={handleScroll}
+                        className="flex-1 p-6 overflow-y-auto bg-slate-50/50 flex flex-col gap-5 relative scroll-smooth"
+                    >
                         {messages.length === 0 ? (
                             <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
                                 아직 대화가 없습니다. 첫 번째 메시지를 보내보세요!
                             </div>
                         ) : (
                             messages.map((msg, idx) => {
+                                if (msg.type === "ENTER") {
+                                    return (
+                                        <div key={idx} className="flex justify-center my-3">
+                      <span className="bg-slate-800/80 backdrop-blur-sm text-white text-xs font-semibold px-5 py-2 rounded-full shadow-sm animate-in fade-in zoom-in duration-300">
+                        {msg.content}
+                      </span>
+                                        </div>
+                                    );
+                                }
+
                                 const isMe = session?.user?.name === msg.sender;
 
                                 return (
@@ -204,7 +268,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                                             <div className={`py-2.5 px-4 rounded-2xl shadow-sm inline-block max-w-lg leading-relaxed ${isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white border border-gray-200 text-gray-800 rounded-tl-none'}`}>
                                                 {msg.content}
                                             </div>
-
                                             {msg.time && (
                                                 <span className={`text-[10px] text-gray-400 mt-1 block ${isMe ? 'mr-1 text-right' : 'ml-1'}`}>
                           {msg.time}
@@ -218,7 +281,19 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                         <div ref={messagesEndRef} />
                     </div>
 
-                    <div className="p-4 bg-white border-t border-gray-200 shrink-0">
+                    {/* 🌟 유저가 스크롤을 올렸을 때 뜨는 '새 메시지' 버튼 */}
+                    {showNewMessageBtn && (
+                        <div className="absolute bottom-24 left-0 w-full flex justify-center z-30 animate-in slide-in-from-bottom-2 fade-in duration-200">
+                            <button
+                                onClick={scrollToBottom}
+                                className="bg-slate-800/90 backdrop-blur-sm text-white px-5 py-2 rounded-full shadow-lg text-sm font-bold flex items-center gap-2 hover:bg-slate-700 transition-colors"
+                            >
+                                <span>👇</span> 새 메시지가 있습니다
+                            </button>
+                        </div>
+                    )}
+
+                    <div className="p-4 bg-white border-t border-gray-200 shrink-0 z-20">
                         <div className="flex gap-3">
                             <input
                                 type="text"
@@ -238,6 +313,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                             </button>
                         </div>
                     </div>
+
                 </div>
             )}
         </div>
