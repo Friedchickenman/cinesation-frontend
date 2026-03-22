@@ -28,6 +28,18 @@ export default function Home() {
         setTimeout(() => setToast(null), 3000);
     };
 
+    // 🌟 마지막 채팅 시간을 예쁘게 바꿔주는 헬퍼 함수
+    const formatLastMessageTime = (timeStr: string) => {
+        if (!timeStr) return "";
+        try {
+            const date = new Date(timeStr);
+            if (isNaN(date.getTime())) return timeStr; // 옛날 데이터(오후 11:43)면 그대로 반환
+            return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+        } catch {
+            return timeStr;
+        }
+    };
+
     // 방 목록 불러오기 (최신순 정렬 + TMDB 포스터 결합)
     const loadRooms = async () => {
         try {
@@ -90,7 +102,6 @@ export default function Home() {
         setNewMovieId("");
     };
 
-    // 🌟 1. 방 생성 시 로그인한 유저 정보를 함께 보내는 핵심 함수
     const handleCreateRoom = async () => {
         if (!newMovieId || !newTitle.trim()) {
             showToast("영화와 토론방 제목을 모두 입력해 주세요!", "error");
@@ -104,7 +115,6 @@ export default function Home() {
                 body: JSON.stringify({
                     movieId: String(newMovieId),
                     title: newTitle,
-                    // 👇 백엔드 DTO에 추가한 creatorName 필드에 현재 유저 이름을 담아 보냅니다.
                     creatorName: session?.user?.name || "익명 유저",
                 }),
             });
@@ -122,13 +132,12 @@ export default function Home() {
         }
     };
 
-    // 🌟 2. 로그인 여부에 따라 모달창 열기 결정
     const handleOpenModal = () => {
         if (!session) {
-            setIsLoginModalOpen(true); // 로그인 안 했으면 로그인 유도 모달
+            setIsLoginModalOpen(true);
             return;
         }
-        setIsModalOpen(true); // 로그인 했으면 방 만들기 모달
+        setIsModalOpen(true);
     };
 
     return (
@@ -196,16 +205,30 @@ export default function Home() {
                                         <span className="text-slate-600 font-medium text-sm">포스터 없음</span>
                                     )}
 
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent opacity-90 transition-opacity group-hover:opacity-100" />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent opacity-90 transition-opacity group-hover:opacity-100" />
                                     <div className="absolute top-3 left-3 z-10">
                                         <span className="px-2.5 py-1 bg-blue-600/90 backdrop-blur-sm text-white text-[11px] font-bold rounded-md shadow-sm">
                                             OPEN
                                         </span>
                                     </div>
+
+                                    {/* 🌟 수정된 하단 정보 영역: 제목 아래에 마지막 채팅 내용을 띄워줍니다! */}
                                     <div className="absolute bottom-0 left-0 w-full p-4 flex flex-col justify-end z-10">
-                                        <h3 className="text-lg font-bold text-white line-clamp-2 leading-tight mb-1 group-hover:text-blue-400 transition-colors">
+                                        <h3 className="text-lg font-bold text-white line-clamp-2 leading-tight mb-3 group-hover:text-blue-400 transition-colors">
                                             {room.title}
                                         </h3>
+
+                                        <div className="flex flex-col gap-1 border-t border-white/20 pt-3">
+                                            <p className="text-xs text-slate-300 line-clamp-1 flex items-center gap-1.5">
+                                                <span className="text-blue-400 shrink-0">💬</span>
+                                                <span className="truncate">{room.lastMessage || "아직 대화가 없습니다"}</span>
+                                            </p>
+                                            {room.lastMessageTime && (
+                                                <span className="text-[10px] text-slate-400 pl-5">
+                                                    {formatLastMessageTime(room.lastMessageTime)}
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
