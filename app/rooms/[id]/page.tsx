@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Client } from "@stomp/stompjs";
 
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
+
 export default function RoomDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const resolvedParams = use(params);
     const roomId = resolvedParams.id;
@@ -20,6 +24,11 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
     const [messages, setMessages] = useState<any[]>([]);
     const [inputMessage, setInputMessage] = useState("");
 
+    // 🌟 무한 스크롤을 위한 상태들 추가!
+    const [page, setPage] = useState(0);
+    const [hasMore, setHasMore] = useState(true);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const chatContainerRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -33,6 +42,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
     const hasEntered = useRef(false);
     const isFirstLoad = useRef(true);
 
+    // 방 정보 불러오기
     useEffect(() => {
         const fetchRoomData = async () => {
             try {
@@ -56,27 +66,67 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
             } catch (err: any) {
                 setError(err.message);
                 setIsLoading(false);
+                toast.error("방 정보를 불러오는데 실패했습니다.");
             }
         };
         fetchRoomData();
     }, [roomId]);
 
+    // 🌟 첫 입장 시 가장 최근 30개 메시지 불러오기
     useEffect(() => {
-        const fetchChatHistory = async () => {
-            if (!roomId) return;
+        if (!roomId) return;
+
+        const fetchInitialChat = async () => {
             try {
-                const res = await fetch(`http://localhost:8080/api/rooms/${roomId}/chats`);
+                const res = await fetch(`http://localhost:8080/api/rooms/${roomId}/chats?page=0&size=30`);
                 if (res.ok) {
                     const history = await res.json();
+                    if (history.length < 30) setHasMore(false); // 30개가 안 되면 더 이상 과거 대화 없음
                     setMessages(history);
+                    setPage(1); // 다음 페이지 번호 1로 세팅
                 }
             } catch (err) {
                 console.error("채팅 내역을 불러오는데 실패했습니다.", err);
             }
         };
-        fetchChatHistory();
+        fetchInitialChat();
     }, [roomId]);
 
+    // 🌟 과거 메시지 추가 로딩 (스크롤을 맨 위로 올렸을 때 실행됨)
+    const loadMoreMessages = async () => {
+        if (!hasMore || isLoadingMore) return;
+        setIsLoadingMore(true);
+
+        try {
+            const res = await fetch(`http://localhost:8080/api/rooms/${roomId}/chats?page=${page}&size=30`);
+            if (res.ok) {
+                const history = await res.json();
+                if (history.length < 30) setHasMore(false); // 더 이상 불러올 게 없으면 중단
+
+                // 스크롤 유지를 위해 현재 높이 기억
+                const container = chatContainerRef.current;
+                const previousScrollHeight = container?.scrollHeight || 0;
+
+                // 기존 메시지 앞에 새(과거) 메시지를 붙임
+                setMessages(prev => [...history, ...prev]);
+
+                // 데이터가 렌더링된 직후, 이전 스크롤 위치를 계산해서 맞춰줌 (화면이 안 튀게 방지)
+                setTimeout(() => {
+                    if (container) {
+                        container.scrollTop = container.scrollHeight - previousScrollHeight;
+                    }
+                }, 0);
+
+                setPage(prev => prev + 1);
+            }
+        } catch (err) {
+            console.error("추가 채팅을 불러오는데 실패했습니다.", err);
+        } finally {
+            setIsLoadingMore(false);
+        }
+    };
+
+    // 웹소켓 연결
     useEffect(() => {
         if (!roomId) return;
 
@@ -121,9 +171,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                 });
 
                 if (!hasEntered.current && session?.user?.name) {
-                    // 🌟 1. 변경점: DB와 서버로 보낼 때는 계산하기 편한 'ISO 표준 시간'을 보냅니다.
                     const timeString = new Date().toISOString();
-
                     stompClient.publish({
                         destination: "/pub/chat/message",
                         body: JSON.stringify({
@@ -144,9 +192,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
 
         return () => {
             if (stompClient.connected && session?.user?.name) {
-                // 🌟 2. 변경점: 퇴장할 때도 ISO 시간으로 보냅니다.
                 const timeString = new Date().toISOString();
-
                 stompClient.publish({
                     destination: "/pub/chat/message",
                     body: JSON.stringify({
@@ -162,16 +208,19 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         };
     }, [roomId, session]);
 
+    // 🌟 스크롤 이벤트: 맨 위에 도달했는지 감지
     const handleScroll = () => {
         if (!chatContainerRef.current) return;
         const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
 
+        // 스크롤이 맨 위에 닿으면 과거 대화 로딩
+        if (scrollTop === 0) {
+            loadMoreMessages();
+        }
+
         const isBottom = scrollHeight - scrollTop - clientHeight < 100;
         setIsAutoScroll(isBottom);
-
-        if (isBottom) {
-            setShowNewMessageBtn(false);
-        }
+        if (isBottom) setShowNewMessageBtn(false);
     };
 
     useEffect(() => {
@@ -189,7 +238,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
 
     const handleTyping = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         setInputMessage(e.target.value);
-
         if (textareaRef.current) {
             textareaRef.current.style.height = "auto";
             textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
@@ -211,7 +259,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (e.nativeEvent.isComposing) return;
-
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             handleSendMessage();
@@ -220,8 +267,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
 
     const handleSendMessage = () => {
         if (!inputMessage.trim() || !client || !client.connected || !session) return;
-
-        // 🌟 3. 변경점: 메시지를 보낼 때도 ISO 시간으로 보냅니다.
         const timeString = new Date().toISOString();
 
         const messageObj = {
@@ -241,27 +286,26 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         setIsAutoScroll(true);
         setShowNewMessageBtn(false);
 
-        if (textareaRef.current) {
-            textareaRef.current.style.height = "52px";
-        }
+        if (textareaRef.current) textareaRef.current.style.height = "52px";
     };
 
     const handleCopyLink = () => {
         const currentUrl = window.location.href;
         navigator.clipboard.writeText(currentUrl).then(() => {
             setIsCopied(true);
+            toast.success("🔗 링크가 클립보드에 복사되었습니다!");
             setTimeout(() => setIsCopied(false), 2000);
         });
     };
 
     const handleExportChat = () => {
-        if (messages.length === 0) return alert("저장할 대화 내역이 없습니다.");
+        if (messages.length === 0) {
+            toast.warning("저장할 대화 내역이 없습니다.");
+            return;
+        }
 
         const chatText = messages.map(msg => {
-            if (msg.type === "ENTER" || msg.type === "LEAVE") {
-                return `--- ${msg.content} ---`;
-            }
-            // 텍스트 저장 시에도 예쁘게 포맷팅
+            if (msg.type === "ENTER" || msg.type === "LEAVE") return `--- ${msg.content} ---`;
             let displayTime = msg.time;
             try {
                 if (msg.time && msg.time.includes('T')) {
@@ -278,6 +322,8 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         link.download = `CineSation_방${roomId}_과몰입기록.txt`;
         link.click();
         URL.revokeObjectURL(url);
+
+        toast.success("💾 대화 기록이 저장되었습니다!");
     };
 
     const scrollToBottom = () => {
@@ -289,22 +335,31 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
     return (
         <div className="max-w-5xl mx-auto py-8 animate-in fade-in duration-500 relative">
             <div className="flex justify-between items-center mb-6 px-2">
-                <button onClick={() => router.back()} className="text-sm font-bold text-gray-500 hover:text-gray-900 flex items-center gap-2 transition-colors">
+                <Button variant="ghost" onClick={() => router.back()} className="text-sm font-bold text-gray-500 hover:text-gray-900 flex items-center gap-2">
                     ← 메인으로 돌아가기
-                </button>
+                </Button>
                 <div className="flex gap-2">
-                    <button onClick={handleExportChat} className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 shadow-sm transition-all">
+                    <Button variant="outline" onClick={handleExportChat} className="flex items-center gap-2 rounded-full font-bold text-gray-600 shadow-sm">
                         <span>💾</span> 기록 저장
-                    </button>
-                    <button onClick={handleCopyLink} className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all ${isCopied ? "bg-green-100 text-green-700 shadow-sm" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 shadow-sm"}`}>
+                    </Button>
+                    <Button
+                        variant={isCopied ? "default" : "outline"}
+                        onClick={handleCopyLink}
+                        className={`flex items-center gap-2 rounded-full font-bold shadow-sm transition-all ${isCopied ? "bg-green-600 hover:bg-green-700 text-white" : "text-gray-600"}`}
+                    >
                         {isCopied ? <><span>✅</span> 복사 완료!</> : <><span>🔗</span> 공유하기</>}
-                    </button>
+                    </Button>
                 </div>
             </div>
 
             {isLoading ? (
-                <div className="bg-slate-900 rounded-3xl p-12 flex justify-center items-center shadow-2xl mb-8 h-64">
-                    <div className="text-white text-lg animate-pulse font-medium">데이터를 불러오는 중...🎬</div>
+                <div className="relative bg-slate-900 rounded-3xl overflow-hidden shadow-2xl mb-8 h-64 flex items-center p-8 md:p-12">
+                    <Skeleton className="absolute inset-0 w-full h-full bg-slate-800" />
+                    <div className="relative z-10 space-y-4 w-full max-w-lg">
+                        <Skeleton className="h-6 w-24 bg-slate-700" />
+                        <Skeleton className="h-12 w-3/4 bg-slate-700" />
+                        <Skeleton className="h-6 w-1/2 bg-slate-700" />
+                    </div>
                 </div>
             ) : error ? (
                 <div className="bg-red-50 border border-red-200 rounded-3xl p-8 text-red-600 shadow-sm mb-8">
@@ -348,19 +403,24 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                         onScroll={handleScroll}
                         className="flex-1 p-6 overflow-y-auto bg-slate-50/50 flex flex-col gap-5 relative scroll-smooth"
                     >
-                        {messages.length === 0 ? (
+                        {/* 🌟 로딩 스피너: 스크롤 올렸을 때 데이터를 가져오는 중이면 표시 */}
+                        {isLoadingMore && (
+                            <div className="flex justify-center py-2">
+                                <span className="w-6 h-6 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></span>
+                            </div>
+                        )}
+
+                        {messages.length === 0 && !isLoadingMore ? (
                             <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
                                 아직 대화가 없습니다. 첫 번째 메시지를 보내보세요!
                             </div>
                         ) : (
                             messages.map((msg, idx) => {
-                                // 🌟 4. 변경점: 날짜가 바뀌었는지 검사하고 예쁜 포맷으로 변환합니다.
                                 let isNewDay = false;
                                 let displayTime = msg.time;
                                 let displayDate = "";
 
                                 const currentDate = new Date(msg.time);
-                                // 예전에 보냈던 데이터(오후 11:43)와 새로 보낸 데이터(ISO)를 구분해서 에러 방지
                                 const isValidDate = !isNaN(currentDate.getTime()) && msg.time?.includes('T');
 
                                 if (isValidDate) {
@@ -376,7 +436,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                                         if (isPrevValid && currentDate.toDateString() !== prevDate.toDateString()) {
                                             isNewDay = true;
                                         } else if (!isPrevValid) {
-                                            isNewDay = true; // 과거 데이터에서 최신 데이터로 넘어올 때 선 그어주기
+                                            isNewDay = true;
                                         }
                                     }
                                 }
@@ -385,7 +445,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
 
                                 return (
                                     <div key={idx} className="flex flex-col">
-                                        {/* 🌟 5. 변경점: 날짜가 바뀌었으면 카톡처럼 가운데에 날짜 구분선을 띄웁니다! */}
                                         {isNewDay && (
                                             <div className="flex justify-center my-4 mb-6">
                                                 <span className="bg-gray-200/60 text-gray-500 text-xs font-semibold px-4 py-1.5 rounded-full shadow-sm">
@@ -414,7 +473,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                                                     </div>
                                                     {displayTime && (
                                                         <span className={`text-[10px] text-gray-400 mt-1 block ${isMe ? 'mr-1 text-right' : 'ml-1'}`}>
-                                                            {/* 🌟 변환된 깔끔한 시간만 표시 */}
                                                             {displayTime}
                                                         </span>
                                                     )}
@@ -441,18 +499,17 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                                 </div>
                             </div>
                         )}
-
                         <div ref={messagesEndRef} />
                     </div>
 
                     {showNewMessageBtn && (
                         <div className="absolute bottom-24 left-0 w-full flex justify-center z-30 animate-in slide-in-from-bottom-2 fade-in duration-200">
-                            <button
+                            <Button
                                 onClick={scrollToBottom}
-                                className="bg-slate-800/90 backdrop-blur-sm text-white px-5 py-2 rounded-full shadow-lg text-sm font-bold flex items-center gap-2 hover:bg-slate-700 transition-colors"
+                                className="bg-slate-800/90 hover:bg-slate-700 backdrop-blur-sm text-white px-5 rounded-full shadow-lg font-bold flex items-center gap-2"
                             >
                                 <span>👇</span> 새 메시지가 있습니다
-                            </button>
+                            </Button>
                         </div>
                     )}
 
@@ -469,13 +526,13 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                                 style={{ height: "52px", minHeight: "52px" }}
                                 className="flex-1 px-5 py-3.5 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 resize-none overflow-y-auto leading-relaxed"
                             />
-                            <button
+                            <Button
                                 onClick={handleSendMessage}
                                 disabled={!session || !client?.connected || !inputMessage.trim()}
-                                className="px-7 py-3.5 h-[52px] bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl disabled:opacity-50 transition-colors shrink-0"
+                                className="h-[52px] px-7 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl disabled:opacity-50 shrink-0"
                             >
                                 전송
-                            </button>
+                            </Button>
                         </div>
                     </div>
                 </div>
