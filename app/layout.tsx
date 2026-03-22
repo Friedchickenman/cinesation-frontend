@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Geist } from "next/font/google";
 import "./globals.css";
 import Link from "next/link";
 // 👇 새롭게 추가된 2줄! (Provider와 AuthButton 불러오기)
 import Providers from "./Providers";
 import AuthButton from "@/components/AuthButton";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -19,7 +22,7 @@ export default function RootLayout({
     children: React.ReactNode;
 }) {
     return (
-        <html lang="ko">
+        <html lang="ko" className={cn("font-sans", geist.variable)}>
         <body className={`${inter.className} bg-slate-50 text-slate-900`}>
 
         {/* 🌟 핵심 포인트 1: Providers로 헤더와 메인 콘텐츠 전체를 감싸줍니다! */}
