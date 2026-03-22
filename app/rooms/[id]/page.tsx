@@ -121,8 +121,8 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                 });
 
                 if (!hasEntered.current && session?.user?.name) {
-                    const now = new Date();
-                    const timeString = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+                    // 🌟 1. 변경점: DB와 서버로 보낼 때는 계산하기 편한 'ISO 표준 시간'을 보냅니다.
+                    const timeString = new Date().toISOString();
 
                     stompClient.publish({
                         destination: "/pub/chat/message",
@@ -144,8 +144,8 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
 
         return () => {
             if (stompClient.connected && session?.user?.name) {
-                const now = new Date();
-                const timeString = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+                // 🌟 2. 변경점: 퇴장할 때도 ISO 시간으로 보냅니다.
+                const timeString = new Date().toISOString();
 
                 stompClient.publish({
                     destination: "/pub/chat/message",
@@ -210,7 +210,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
     };
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        if (e.nativeEvent.isComposing) return; // 한글 조합 중일 때 엔터 씹힘 방지
+        if (e.nativeEvent.isComposing) return;
 
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -221,8 +221,8 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
     const handleSendMessage = () => {
         if (!inputMessage.trim() || !client || !client.connected || !session) return;
 
-        const now = new Date();
-        const timeString = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+        // 🌟 3. 변경점: 메시지를 보낼 때도 ISO 시간으로 보냅니다.
+        const timeString = new Date().toISOString();
 
         const messageObj = {
             roomId: Number(roomId),
@@ -261,7 +261,14 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
             if (msg.type === "ENTER" || msg.type === "LEAVE") {
                 return `--- ${msg.content} ---`;
             }
-            return `[${msg.time || '시간없음'}] ${msg.sender}: ${msg.content}`;
+            // 텍스트 저장 시에도 예쁘게 포맷팅
+            let displayTime = msg.time;
+            try {
+                if (msg.time && msg.time.includes('T')) {
+                    displayTime = new Date(msg.time).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+                }
+            } catch (e) {}
+            return `[${displayTime || '시간없음'}] ${msg.sender}: ${msg.content}`;
         }).join('\n');
 
         const blob = new Blob([chatText], { type: 'text/plain;charset=utf-8' });
@@ -306,7 +313,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                 </div>
             ) : (
                 <div className="relative bg-slate-900 rounded-3xl text-white shadow-2xl mb-8 overflow-hidden min-h-[320px] flex flex-col justify-end p-8 md:p-12">
-                    {room.poster_path && (
+                    {room?.poster_path && (
                         <>
                             <div className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-40 mix-blend-overlay" style={{ backgroundImage: `url(https://image.tmdb.org/t/p/w1280${room.poster_path})` }} />
                             <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/60 to-transparent" />
@@ -315,12 +322,12 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                     <div className="relative z-10">
                         <div className="flex items-center gap-3 mb-4">
                             <span className="px-3 py-1 bg-blue-600 rounded-md text-xs font-black tracking-widest shadow-lg">OPEN</span>
-                            <span className="text-slate-300 text-sm font-medium">No. {room.id}</span>
-                            <span className="text-blue-300/80 text-sm font-medium border-l border-white/20 pl-3">방장: {room.creatorName}</span>
+                            <span className="text-slate-300 text-sm font-medium">No. {room?.id}</span>
+                            <span className="text-blue-300/80 text-sm font-medium border-l border-white/20 pl-3">방장: {room?.creatorName}</span>
                         </div>
-                        <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight mb-4 leading-tight drop-shadow-lg">{room.title}</h1>
+                        <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight mb-4 leading-tight drop-shadow-lg">{room?.title}</h1>
                         <p className="text-slate-200 text-lg md:text-xl font-medium drop-shadow-md">
-                            <span className="text-blue-400 font-bold border-b border-blue-400/30 pb-0.5">{room.real_movie_title || room.movieId}</span> 에 대한 과몰입 토론방
+                            <span className="text-blue-400 font-bold border-b border-blue-400/30 pb-0.5">{room?.real_movie_title || room?.movieId}</span> 에 대한 과몰입 토론방
                         </p>
                     </div>
                 </div>
@@ -328,7 +335,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
 
             {!isLoading && !error && (
                 <div className="flex flex-col h-[600px] bg-white border border-gray-200 rounded-3xl shadow-sm overflow-hidden relative">
-
                     <div className="bg-gray-50 border-b border-gray-200 px-6 py-4 flex items-center justify-between shrink-0 z-20">
                         <h3 className="font-bold text-gray-800 flex items-center gap-2"><span>💬</span> 실시간 과몰입 채팅</h3>
                         <span className={`text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5 ${client?.connected ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
@@ -348,43 +354,78 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                             </div>
                         ) : (
                             messages.map((msg, idx) => {
-                                if (msg.type === "ENTER" || msg.type === "LEAVE") {
-                                    return (
-                                        <div key={idx} className="flex justify-center my-3">
-                                            <span className="bg-slate-800/80 backdrop-blur-sm text-white text-xs font-semibold px-5 py-2 rounded-full shadow-sm animate-in fade-in zoom-in duration-300">
-                                                {msg.content}
-                                            </span>
-                                        </div>
-                                    );
+                                // 🌟 4. 변경점: 날짜가 바뀌었는지 검사하고 예쁜 포맷으로 변환합니다.
+                                let isNewDay = false;
+                                let displayTime = msg.time;
+                                let displayDate = "";
+
+                                const currentDate = new Date(msg.time);
+                                // 예전에 보냈던 데이터(오후 11:43)와 새로 보낸 데이터(ISO)를 구분해서 에러 방지
+                                const isValidDate = !isNaN(currentDate.getTime()) && msg.time?.includes('T');
+
+                                if (isValidDate) {
+                                    displayTime = currentDate.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+                                    displayDate = currentDate.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
+
+                                    if (idx === 0) {
+                                        isNewDay = true;
+                                    } else {
+                                        const prevDate = new Date(messages[idx - 1].time);
+                                        const isPrevValid = !isNaN(prevDate.getTime()) && messages[idx - 1].time?.includes('T');
+
+                                        if (isPrevValid && currentDate.toDateString() !== prevDate.toDateString()) {
+                                            isNewDay = true;
+                                        } else if (!isPrevValid) {
+                                            isNewDay = true; // 과거 데이터에서 최신 데이터로 넘어올 때 선 그어주기
+                                        }
+                                    }
                                 }
 
                                 const isMe = session?.user?.name === msg.sender;
 
                                 return (
-                                    <div key={idx} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : ''}`}>
-                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg shrink-0 shadow-sm ${isMe ? 'bg-gray-200 border-gray-300' : 'bg-blue-100 border-blue-200'}`}>
-                                            {isMe ? "😎" : "🍿"}
-                                        </div>
-                                        <div className={`flex flex-col ${isMe ? 'items-end' : ''}`}>
-                                            <span className={`text-xs font-semibold text-gray-500 mb-1.5 block ${isMe ? 'mr-1' : 'ml-1'}`}>
-                                                {msg.sender}
-                                            </span>
-                                            {/* whitespace-pre-wrap 추가로 줄바꿈 적용 */}
-                                            <div className={`py-2.5 px-4 rounded-2xl shadow-sm inline-block max-w-lg leading-relaxed whitespace-pre-wrap ${isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white border border-gray-200 text-gray-800 rounded-tl-none'}`}>
-                                                {msg.content}
-                                            </div>
-                                            {msg.time && (
-                                                <span className={`text-[10px] text-gray-400 mt-1 block ${isMe ? 'mr-1 text-right' : 'ml-1'}`}>
-                                                    {msg.time}
+                                    <div key={idx} className="flex flex-col">
+                                        {/* 🌟 5. 변경점: 날짜가 바뀌었으면 카톡처럼 가운데에 날짜 구분선을 띄웁니다! */}
+                                        {isNewDay && (
+                                            <div className="flex justify-center my-4 mb-6">
+                                                <span className="bg-gray-200/60 text-gray-500 text-xs font-semibold px-4 py-1.5 rounded-full shadow-sm">
+                                                    🗓️ {displayDate}
                                                 </span>
-                                            )}
-                                        </div>
+                                            </div>
+                                        )}
+
+                                        {msg.type === "ENTER" || msg.type === "LEAVE" ? (
+                                            <div className="flex justify-center my-3">
+                                                <span className="bg-slate-800/80 backdrop-blur-sm text-white text-xs font-semibold px-5 py-2 rounded-full shadow-sm animate-in fade-in zoom-in duration-300">
+                                                    {msg.content}
+                                                </span>
+                                            </div>
+                                        ) : (
+                                            <div className={`flex gap-3 ${isMe ? 'flex-row-reverse' : ''}`}>
+                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg shrink-0 shadow-sm ${isMe ? 'bg-gray-200 border-gray-300' : 'bg-blue-100 border-blue-200'}`}>
+                                                    {isMe ? "😎" : "🍿"}
+                                                </div>
+                                                <div className={`flex flex-col ${isMe ? 'items-end' : ''}`}>
+                                                    <span className={`text-xs font-semibold text-gray-500 mb-1.5 block ${isMe ? 'mr-1' : 'ml-1'}`}>
+                                                        {msg.sender}
+                                                    </span>
+                                                    <div className={`py-2.5 px-4 rounded-2xl shadow-sm inline-block max-w-lg leading-relaxed whitespace-pre-wrap ${isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white border border-gray-200 text-gray-800 rounded-tl-none'}`}>
+                                                        {msg.content}
+                                                    </div>
+                                                    {displayTime && (
+                                                        <span className={`text-[10px] text-gray-400 mt-1 block ${isMe ? 'mr-1 text-right' : 'ml-1'}`}>
+                                                            {/* 🌟 변환된 깔끔한 시간만 표시 */}
+                                                            {displayTime}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })
                         )}
 
-                        {/* 타이핑 인디케이터 */}
                         {typingUsers.size > 0 && (
                             <div className="flex gap-3 mb-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
                                 <div className="w-10 h-10 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center text-lg shrink-0 shadow-sm">🍿</div>
@@ -437,7 +478,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                             </button>
                         </div>
                     </div>
-
                 </div>
             )}
         </div>
