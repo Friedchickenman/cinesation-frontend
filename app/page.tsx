@@ -9,18 +9,24 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-// 🌟 새롭게 추가된 탭 컴포넌트 임포트!
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 
 export default function Home() {
     const router = useRouter();
     const { data: session } = useSession();
 
-    const [rooms, setRooms] = useState([]);
+    const [rooms, setRooms] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState("");
 
-    // 🌟 마이페이지(나의 기록)를 위한 새로운 상태 추가
     const [myRooms, setMyRooms] = useState<any[]>([]);
     const [isMyRoomsLoading, setIsMyRoomsLoading] = useState(false);
 
@@ -31,6 +37,9 @@ export default function Home() {
     const [searchQuery, setSearchQuery] = useState("");
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [selectedMovie, setSelectedMovie] = useState<any>(null);
+
+    const [filterStatus, setFilterStatus] = useState("ALL");
+    const [sortBy, setSortBy] = useState("LATEST");
 
     const formatLastMessageTime = (timeStr: string) => {
         if (!timeStr) return "";
@@ -43,7 +52,6 @@ export default function Home() {
         }
     };
 
-    // 전체 방 불러오기
     const loadRooms = async () => {
         setIsLoading(true);
         try {
@@ -51,11 +59,9 @@ export default function Home() {
             if (!res.ok) throw new Error("서버 응답 에러");
             const data = await res.json();
 
-            const sortedData = data.sort((a: any, b: any) => b.id - a.id);
             const apiKey = process.env.NEXT_PUBLIC_TMDB_API_KEY;
-
             const roomsWithPosters = await Promise.all(
-                sortedData.map(async (room: any) => {
+                data.map(async (room: any) => {
                     if (!room.movieId || room.movieId.startsWith("m_")) return room;
                     try {
                         const tmdbRes = await fetch(`https://api.themoviedb.org/3/movie/${room.movieId}?language=ko-KR&api_key=${apiKey}`);
@@ -75,7 +81,6 @@ export default function Home() {
         }
     };
 
-    // 🌟 내가 만든 방 불러오기 API 연동
     const loadMyRooms = async () => {
         if (!session?.user?.name) return;
         setIsMyRoomsLoading(true);
@@ -110,7 +115,6 @@ export default function Home() {
         loadRooms();
     }, []);
 
-    // 🌟 로그인 세션이 확인되면 내 기록도 불러옵니다!
     useEffect(() => {
         if (session?.user?.name) {
             loadMyRooms();
@@ -164,7 +168,6 @@ export default function Home() {
             toast.success("🎉 토론방이 성공적으로 개설되었습니다!");
             closeModal();
             loadRooms();
-            // 🌟 방을 만들면 내 기록 목록도 갱신해줍니다.
             if (session?.user?.name) loadMyRooms();
         } catch (err: any) {
             toast.error(err.message);
@@ -179,9 +182,43 @@ export default function Home() {
         setIsModalOpen(true);
     };
 
-    // 🌟 카드 UI를 재사용하기 위한 렌더링 함수
-    const renderRoomCards = (roomList: any[], emptyMessage: string) => {
-        if (roomList.length === 0) {
+    // 🌟 핵심 로직: 탭 종류(activeTab)에 따라 필터링 철학을 다르게 적용합니다.
+    const getProcessedRooms = (roomList: any[], activeTab: string) => {
+        let processed = [...roomList];
+
+        if (activeTab === "all") {
+            // [전체 방] 탭: 기본적으로 OPEN만 노출 (필터 선택 시 해당 상태 노출)
+            processed = processed.filter((room) => {
+                if (filterStatus === "ALL") return room.status === "OPEN";
+                return room.status === filterStatus;
+            });
+        } else {
+            // [내 기록] 탭: 필터와 상관없이 본인의 모든 기록 노출 (기본값 ALL일 때)
+            processed = processed.filter((room) => {
+                if (filterStatus === "ALL") return true;
+                return room.status === filterStatus;
+            });
+        }
+
+        processed.sort((a, b) => {
+            if (sortBy === "LATEST") return b.id - a.id;
+            if (sortBy === "OLDEST") return a.id - b.id;
+            if (sortBy === "ACTIVE") {
+                const timeA = a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
+                const timeB = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
+                return timeB - timeA;
+            }
+            return 0;
+        });
+
+        return processed;
+    };
+
+    const renderRoomCards = (roomList: any[], emptyMessage: string, activeTab: string) => {
+        // 🌟 탭 종류(activeTab)를 넘겨줘서 필터링 방식을 결정합니다.
+        const processedRooms = getProcessedRooms(roomList, activeTab);
+
+        if (processedRooms.length === 0) {
             return (
                 <div className="py-20 text-center flex flex-col items-center justify-center bg-white rounded-3xl border border-gray-100 shadow-sm">
                     <span className="text-4xl mb-4">🎬</span>
@@ -192,7 +229,7 @@ export default function Home() {
 
         return (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                {roomList.map((room: any) => (
+                {processedRooms.map((room: any) => (
                     <div key={room.id} onClick={() => router.push(`/rooms/${room.id}`)} className="group relative flex flex-col bg-slate-800 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer hover:-translate-y-2">
                         <div className="relative aspect-[2/3] bg-slate-800 overflow-hidden flex items-center justify-center">
                             {room.poster_path ? (
@@ -202,7 +239,6 @@ export default function Home() {
                             )}
                             <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent opacity-90 transition-opacity group-hover:opacity-100" />
                             <div className="absolute top-3 left-3 z-10 flex gap-1.5">
-                                {/* 상태 뱃지 표시 */}
                                 <span className={`px-2.5 py-1 backdrop-blur-sm text-white text-[11px] font-bold rounded-md shadow-sm ${room.status === 'OPEN' ? 'bg-blue-600/90' : 'bg-red-600/90'}`}>
                                     {room.status === 'OPEN' ? 'OPEN' : 'CLOSED'}
                                 </span>
@@ -251,10 +287,9 @@ export default function Home() {
                 </div>
             </section>
 
-            {/* 🌟 탭 인터페이스 적용 섹션 */}
             <section>
                 <Tabs defaultValue="all" className="w-full">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 gap-4">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
                         <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                             🔥 토론방 라운지
                         </h2>
@@ -264,7 +299,31 @@ export default function Home() {
                         </TabsList>
                     </div>
 
-                    {/* 1. 전체 방 탭 콘텐츠 */}
+                    <div className="flex flex-wrap items-center justify-end gap-3 mb-6 bg-white p-3 rounded-2xl shadow-sm border border-gray-100">
+                        <Select value={filterStatus} onValueChange={setFilterStatus}>
+                            <SelectTrigger className="w-[140px] bg-gray-50 border-gray-200 focus:ring-blue-500 rounded-xl font-semibold text-gray-700">
+                                <SelectValue placeholder="상태 필터" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl">
+                                <SelectItem value="ALL" className="font-medium cursor-pointer">모든 상태</SelectItem>
+                                <SelectItem value="OPEN" className="font-medium cursor-pointer text-blue-600">입장 가능 (OPEN)</SelectItem>
+                                <SelectItem value="CLOSED" className="font-medium cursor-pointer text-red-600">종료됨 (CLOSED)</SelectItem>
+                            </SelectContent>
+                        </Select>
+
+                        <Select value={sortBy} onValueChange={setSortBy}>
+                            <SelectTrigger className="w-[140px] bg-gray-50 border-gray-200 focus:ring-blue-500 rounded-xl font-semibold text-gray-700">
+                                <SelectValue placeholder="정렬 기준" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl">
+                                <SelectItem value="LATEST" className="font-medium cursor-pointer">최신 개설순</SelectItem>
+                                <SelectItem value="OLDEST" className="font-medium cursor-pointer">오래된 순</SelectItem>
+                                <SelectItem value="ACTIVE" className="font-medium cursor-pointer text-green-600">🔥 최근 대화순</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    {/* 🌟 탭을 부를 때 "all" 인지 "my" 인지 넘겨줍니다! */}
                     <TabsContent value="all" className="mt-0 animate-in fade-in duration-500">
                         {isLoading ? (
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
@@ -279,11 +338,10 @@ export default function Home() {
                         ) : error ? (
                             <div className="p-4 bg-red-100 text-red-700 rounded-lg">에러 발생: {error}</div>
                         ) : (
-                            renderRoomCards(rooms, "아직 만들어진 방이 없습니다. 첫 번째 토론방의 주인공이 되어보세요!")
+                            renderRoomCards(rooms, "아직 만들어진 방이 없습니다.", "all")
                         )}
                     </TabsContent>
 
-                    {/* 2. 나의 기록 탭 콘텐츠 */}
                     <TabsContent value="my" className="mt-0 animate-in fade-in duration-500">
                         {!session ? (
                             <div className="py-24 text-center flex flex-col items-center justify-center bg-white rounded-3xl border border-gray-100 shadow-sm">
@@ -304,7 +362,7 @@ export default function Home() {
                                 ))}
                             </div>
                         ) : (
-                            renderRoomCards(myRooms, "아직 개설한 토론방이 없습니다. 방을 만들고 기록을 남겨보세요!")
+                            renderRoomCards(myRooms, "아직 개설한 토론방이 없습니다.", "my")
                         )}
                     </TabsContent>
                 </Tabs>
