@@ -24,7 +24,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
     const [messages, setMessages] = useState<any[]>([]);
     const [inputMessage, setInputMessage] = useState("");
 
-    // 🌟 무한 스크롤을 위한 상태들 추가!
     const [page, setPage] = useState(0);
     const [hasMore, setHasMore] = useState(true);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -72,7 +71,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         fetchRoomData();
     }, [roomId]);
 
-    // 🌟 첫 입장 시 가장 최근 30개 메시지 불러오기
+    // 첫 입장 시 가장 최근 30개 메시지 불러오기
     useEffect(() => {
         if (!roomId) return;
 
@@ -81,9 +80,9 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                 const res = await fetch(`http://localhost:8080/api/rooms/${roomId}/chats?page=0&size=30`);
                 if (res.ok) {
                     const history = await res.json();
-                    if (history.length < 30) setHasMore(false); // 30개가 안 되면 더 이상 과거 대화 없음
+                    if (history.length < 30) setHasMore(false);
                     setMessages(history);
-                    setPage(1); // 다음 페이지 번호 1로 세팅
+                    setPage(1);
                 }
             } catch (err) {
                 console.error("채팅 내역을 불러오는데 실패했습니다.", err);
@@ -92,7 +91,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         fetchInitialChat();
     }, [roomId]);
 
-    // 🌟 과거 메시지 추가 로딩 (스크롤을 맨 위로 올렸을 때 실행됨)
+    // 과거 메시지 추가 로딩
     const loadMoreMessages = async () => {
         if (!hasMore || isLoadingMore) return;
         setIsLoadingMore(true);
@@ -101,16 +100,13 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
             const res = await fetch(`http://localhost:8080/api/rooms/${roomId}/chats?page=${page}&size=30`);
             if (res.ok) {
                 const history = await res.json();
-                if (history.length < 30) setHasMore(false); // 더 이상 불러올 게 없으면 중단
+                if (history.length < 30) setHasMore(false);
 
-                // 스크롤 유지를 위해 현재 높이 기억
                 const container = chatContainerRef.current;
                 const previousScrollHeight = container?.scrollHeight || 0;
 
-                // 기존 메시지 앞에 새(과거) 메시지를 붙임
                 setMessages(prev => [...history, ...prev]);
 
-                // 데이터가 렌더링된 직후, 이전 스크롤 위치를 계산해서 맞춰줌 (화면이 안 튀게 방지)
                 setTimeout(() => {
                     if (container) {
                         container.scrollTop = container.scrollHeight - previousScrollHeight;
@@ -170,7 +166,8 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                     }
                 });
 
-                if (!hasEntered.current && session?.user?.name) {
+                // 🌟 방이 OPEN 상태일 때만 입장 메시지를 보냅니다.
+                if (!hasEntered.current && session?.user?.name && room?.status !== 'CLOSED') {
                     const timeString = new Date().toISOString();
                     stompClient.publish({
                         destination: "/pub/chat/message",
@@ -191,7 +188,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         setClient(stompClient);
 
         return () => {
-            if (stompClient.connected && session?.user?.name) {
+            if (stompClient.connected && session?.user?.name && room?.status !== 'CLOSED') {
                 const timeString = new Date().toISOString();
                 stompClient.publish({
                     destination: "/pub/chat/message",
@@ -206,14 +203,12 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
             }
             stompClient.deactivate();
         };
-    }, [roomId, session]);
+    }, [roomId, session, room?.status]);
 
-    // 🌟 스크롤 이벤트: 맨 위에 도달했는지 감지
     const handleScroll = () => {
         if (!chatContainerRef.current) return;
         const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
 
-        // 스크롤이 맨 위에 닿으면 과거 대화 로딩
         if (scrollTop === 0) {
             loadMoreMessages();
         }
@@ -243,7 +238,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
             textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
         }
 
-        if (client?.connected && session?.user?.name && e.target.value.trim() !== "") {
+        if (client?.connected && session?.user?.name && e.target.value.trim() !== "" && room?.status !== 'CLOSED') {
             client.publish({
                 destination: "/pub/chat/message",
                 body: JSON.stringify({
@@ -266,7 +261,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
     };
 
     const handleSendMessage = () => {
-        if (!inputMessage.trim() || !client || !client.connected || !session) return;
+        if (!inputMessage.trim() || !client || !client.connected || !session || room?.status === 'CLOSED') return;
         const timeString = new Date().toISOString();
 
         const messageObj = {
@@ -376,7 +371,10 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                     )}
                     <div className="relative z-10">
                         <div className="flex items-center gap-3 mb-4">
-                            <span className="px-3 py-1 bg-blue-600 rounded-md text-xs font-black tracking-widest shadow-lg">OPEN</span>
+                            {/* 🌟 1. 방 상태에 따라 뱃지 색상과 텍스트 변경! */}
+                            <span className={`px-3 py-1 rounded-md text-xs font-black tracking-widest shadow-lg ${room?.status === 'OPEN' ? 'bg-blue-600 text-white' : 'bg-red-600 text-white'}`}>
+                                {room?.status === 'OPEN' ? 'OPEN' : 'CLOSED'}
+                            </span>
                             <span className="text-slate-300 text-sm font-medium">No. {room?.id}</span>
                             <span className="text-blue-300/80 text-sm font-medium border-l border-white/20 pl-3">방장: {room?.creatorName}</span>
                         </div>
@@ -403,7 +401,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                         onScroll={handleScroll}
                         className="flex-1 p-6 overflow-y-auto bg-slate-50/50 flex flex-col gap-5 relative scroll-smooth"
                     >
-                        {/* 🌟 로딩 스피너: 스크롤 올렸을 때 데이터를 가져오는 중이면 표시 */}
                         {isLoadingMore && (
                             <div className="flex justify-center py-2">
                                 <span className="w-6 h-6 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></span>
@@ -520,15 +517,17 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                                 value={inputMessage}
                                 onChange={handleTyping}
                                 onKeyDown={handleKeyDown}
-                                placeholder={session ? "과몰입 멘트를 입력해 주세요... (Shift+Enter로 줄바꿈)" : "로그인 후 참여 가능합니다."}
-                                disabled={!session || !client?.connected}
+                                // 🌟 2. 방이 닫혔으면 안내 문구를 바꾸고, textarea를 비활성화합니다.
+                                placeholder={room?.status === 'CLOSED' ? "🔒 7일이 지나 종료된 토론방입니다. (읽기 전용)" : session ? "과몰입 멘트를 입력해 주세요... (Shift+Enter로 줄바꿈)" : "로그인 후 참여 가능합니다."}
+                                disabled={!session || !client?.connected || room?.status === 'CLOSED'}
                                 rows={1}
                                 style={{ height: "52px", minHeight: "52px" }}
                                 className="flex-1 px-5 py-3.5 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 resize-none overflow-y-auto leading-relaxed"
                             />
                             <Button
                                 onClick={handleSendMessage}
-                                disabled={!session || !client?.connected || !inputMessage.trim()}
+                                // 🌟 3. 전송 버튼도 방이 닫혔으면 클릭 못하게 막습니다.
+                                disabled={!session || !client?.connected || !inputMessage.trim() || room?.status === 'CLOSED'}
                                 className="h-[52px] px-7 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl disabled:opacity-50 shrink-0"
                             >
                                 전송

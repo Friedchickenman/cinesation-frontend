@@ -4,20 +4,25 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession, signIn } from "next-auth/react";
 
-// shadcn/ui 컴포넌트들
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { toast } from "sonner"; // 🌟 Sonner 임포트! (초간단)
+import { toast } from "sonner";
+// 🌟 새롭게 추가된 탭 컴포넌트 임포트!
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function Home() {
     const router = useRouter();
     const { data: session } = useSession();
 
     const [rooms, setRooms] = useState([]);
-    const [isLoading, setIsLoading] = useState(true); // 🌟 로딩 상태
+    const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState("");
+
+    // 🌟 마이페이지(나의 기록)를 위한 새로운 상태 추가
+    const [myRooms, setMyRooms] = useState<any[]>([]);
+    const [isMyRoomsLoading, setIsMyRoomsLoading] = useState(false);
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -38,6 +43,7 @@ export default function Home() {
         }
     };
 
+    // 전체 방 불러오기
     const loadRooms = async () => {
         setIsLoading(true);
         try {
@@ -52,9 +58,7 @@ export default function Home() {
                 sortedData.map(async (room: any) => {
                     if (!room.movieId || room.movieId.startsWith("m_")) return room;
                     try {
-                        const tmdbRes = await fetch(
-                            `https://api.themoviedb.org/3/movie/${room.movieId}?language=ko-KR&api_key=${apiKey}`
-                        );
+                        const tmdbRes = await fetch(`https://api.themoviedb.org/3/movie/${room.movieId}?language=ko-KR&api_key=${apiKey}`);
                         if (!tmdbRes.ok) return room;
                         const tmdbData = await tmdbRes.json();
                         return { ...room, poster_path: tmdbData.poster_path };
@@ -63,7 +67,6 @@ export default function Home() {
                     }
                 })
             );
-
             setRooms(roomsWithPosters as any);
         } catch (err: any) {
             setError(err.message);
@@ -72,9 +75,47 @@ export default function Home() {
         }
     };
 
+    // 🌟 내가 만든 방 불러오기 API 연동
+    const loadMyRooms = async () => {
+        if (!session?.user?.name) return;
+        setIsMyRoomsLoading(true);
+        try {
+            const res = await fetch(`http://localhost:8080/api/rooms/my-rooms?creatorName=${encodeURIComponent(session.user.name)}`);
+            if (!res.ok) throw new Error("내 기록을 불러오지 못했습니다.");
+            const data = await res.json();
+
+            const apiKey = process.env.NEXT_PUBLIC_TMDB_API_KEY;
+            const roomsWithPosters = await Promise.all(
+                data.map(async (room: any) => {
+                    if (!room.movieId || room.movieId.startsWith("m_")) return room;
+                    try {
+                        const tmdbRes = await fetch(`https://api.themoviedb.org/3/movie/${room.movieId}?language=ko-KR&api_key=${apiKey}`);
+                        if (!tmdbRes.ok) return room;
+                        const tmdbData = await tmdbRes.json();
+                        return { ...room, poster_path: tmdbData.poster_path };
+                    } catch (e) {
+                        return room;
+                    }
+                })
+            );
+            setMyRooms(roomsWithPosters as any);
+        } catch (err: any) {
+            toast.error(err.message);
+        } finally {
+            setIsMyRoomsLoading(false);
+        }
+    };
+
     useEffect(() => {
         loadRooms();
     }, []);
+
+    // 🌟 로그인 세션이 확인되면 내 기록도 불러옵니다!
+    useEffect(() => {
+        if (session?.user?.name) {
+            loadMyRooms();
+        }
+    }, [session?.user?.name]);
 
     const handleSearch = async () => {
         if (!searchQuery.trim()) return;
@@ -86,7 +127,6 @@ export default function Home() {
             const data = await res.json();
             setSearchResults(data.results || []);
         } catch (err) {
-            // 🌟 Sonner 에러 알림
             toast.error("영화 검색 중 오류가 발생했습니다.");
         }
     };
@@ -121,10 +161,11 @@ export default function Home() {
                 throw new Error(errorData.message || "방 생성에 실패했습니다.");
             }
 
-            // 🌟 Sonner 성공 알림
             toast.success("🎉 토론방이 성공적으로 개설되었습니다!");
             closeModal();
             loadRooms();
+            // 🌟 방을 만들면 내 기록 목록도 갱신해줍니다.
+            if (session?.user?.name) loadMyRooms();
         } catch (err: any) {
             toast.error(err.message);
         }
@@ -136,6 +177,53 @@ export default function Home() {
             return;
         }
         setIsModalOpen(true);
+    };
+
+    // 🌟 카드 UI를 재사용하기 위한 렌더링 함수
+    const renderRoomCards = (roomList: any[], emptyMessage: string) => {
+        if (roomList.length === 0) {
+            return (
+                <div className="py-20 text-center flex flex-col items-center justify-center bg-white rounded-3xl border border-gray-100 shadow-sm">
+                    <span className="text-4xl mb-4">🎬</span>
+                    <p className="text-gray-500 font-medium">{emptyMessage}</p>
+                </div>
+            );
+        }
+
+        return (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                {roomList.map((room: any) => (
+                    <div key={room.id} onClick={() => router.push(`/rooms/${room.id}`)} className="group relative flex flex-col bg-slate-800 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer hover:-translate-y-2">
+                        <div className="relative aspect-[2/3] bg-slate-800 overflow-hidden flex items-center justify-center">
+                            {room.poster_path ? (
+                                <img src={`https://image.tmdb.org/t/p/w500${room.poster_path}`} alt={room.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                            ) : (
+                                <span className="text-slate-600 font-medium text-sm">포스터 없음</span>
+                            )}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent opacity-90 transition-opacity group-hover:opacity-100" />
+                            <div className="absolute top-3 left-3 z-10 flex gap-1.5">
+                                {/* 상태 뱃지 표시 */}
+                                <span className={`px-2.5 py-1 backdrop-blur-sm text-white text-[11px] font-bold rounded-md shadow-sm ${room.status === 'OPEN' ? 'bg-blue-600/90' : 'bg-red-600/90'}`}>
+                                    {room.status === 'OPEN' ? 'OPEN' : 'CLOSED'}
+                                </span>
+                            </div>
+                            <div className="absolute bottom-0 left-0 w-full p-4 flex flex-col justify-end z-10">
+                                <h3 className="text-lg font-bold text-white line-clamp-2 leading-tight mb-3 group-hover:text-blue-400 transition-colors">{room.title}</h3>
+                                <div className="flex flex-col gap-1 border-t border-white/20 pt-3">
+                                    <p className="text-xs text-slate-300 line-clamp-1 flex items-center gap-1.5">
+                                        <span className="text-blue-400 shrink-0">💬</span>
+                                        <span className="truncate">{room.lastMessage || "아직 대화가 없습니다"}</span>
+                                    </p>
+                                    {room.lastMessageTime && (
+                                        <span className="text-[10px] text-slate-400 pl-5">{formatLastMessageTime(room.lastMessageTime)}</span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        );
     };
 
     return (
@@ -163,64 +251,63 @@ export default function Home() {
                 </div>
             </section>
 
+            {/* 🌟 탭 인터페이스 적용 섹션 */}
             <section>
-                <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                        🔥 지금 뜨거운 토론방
-                    </h2>
-                    <span className="text-sm font-medium text-gray-500 cursor-pointer hover:text-gray-800 transition-colors">
-                        전체 보기 →
-                    </span>
-                </div>
+                <Tabs defaultValue="all" className="w-full">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 gap-4">
+                        <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                            🔥 토론방 라운지
+                        </h2>
+                        <TabsList className="bg-slate-200/50 p-1.5 rounded-xl h-auto">
+                            <TabsTrigger value="all" className="rounded-lg font-bold text-sm data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm px-6 py-2.5 transition-all">전체 방 보기</TabsTrigger>
+                            <TabsTrigger value="my" className="rounded-lg font-bold text-sm data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm px-6 py-2.5 transition-all">나의 과몰입 기록</TabsTrigger>
+                        </TabsList>
+                    </div>
 
-                {/* 🌟 스켈레톤 UI (로딩 중일 때 카드 모양으로 깜빡임) */}
-                {isLoading ? (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                        {Array.from({ length: 10 }).map((_, i) => (
-                            <div key={i} className="flex flex-col gap-3">
-                                <Skeleton className="aspect-[2/3] w-full rounded-2xl bg-slate-200" />
-                                <Skeleton className="h-5 w-3/4 bg-slate-200" />
-                                <Skeleton className="h-4 w-1/2 bg-slate-200" />
-                            </div>
-                        ))}
-                    </div>
-                ) : error ? (
-                    <div className="p-4 bg-red-100 text-red-700 rounded-lg">에러 발생: {error}</div>
-                ) : rooms.length === 0 ? (
-                    <div className="py-20 text-center text-gray-500 bg-gray-50 rounded-2xl border border-gray-200 border-dashed">
-                        아직 만들어진 방이 없습니다. 첫 번째 토론방의 주인공이 되어보세요!
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                        {rooms.map((room: any) => (
-                            <div key={room.id} onClick={() => router.push(`/rooms/${room.id}`)} className="group relative flex flex-col bg-slate-800 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer hover:-translate-y-2">
-                                <div className="relative aspect-[2/3] bg-slate-800 overflow-hidden flex items-center justify-center">
-                                    {room.poster_path ? (
-                                        <img src={`https://image.tmdb.org/t/p/w500${room.poster_path}`} alt={room.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                                    ) : (
-                                        <span className="text-slate-600 font-medium text-sm">포스터 없음</span>
-                                    )}
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent opacity-90 transition-opacity group-hover:opacity-100" />
-                                    <div className="absolute top-3 left-3 z-10">
-                                        <span className="px-2.5 py-1 bg-blue-600/90 backdrop-blur-sm text-white text-[11px] font-bold rounded-md shadow-sm">OPEN</span>
+                    {/* 1. 전체 방 탭 콘텐츠 */}
+                    <TabsContent value="all" className="mt-0 animate-in fade-in duration-500">
+                        {isLoading ? (
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                                {Array.from({ length: 10 }).map((_, i) => (
+                                    <div key={i} className="flex flex-col gap-3">
+                                        <Skeleton className="aspect-[2/3] w-full rounded-2xl bg-slate-200" />
+                                        <Skeleton className="h-5 w-3/4 bg-slate-200" />
+                                        <Skeleton className="h-4 w-1/2 bg-slate-200" />
                                     </div>
-                                    <div className="absolute bottom-0 left-0 w-full p-4 flex flex-col justify-end z-10">
-                                        <h3 className="text-lg font-bold text-white line-clamp-2 leading-tight mb-3 group-hover:text-blue-400 transition-colors">{room.title}</h3>
-                                        <div className="flex flex-col gap-1 border-t border-white/20 pt-3">
-                                            <p className="text-xs text-slate-300 line-clamp-1 flex items-center gap-1.5">
-                                                <span className="text-blue-400 shrink-0">💬</span>
-                                                <span className="truncate">{room.lastMessage || "아직 대화가 없습니다"}</span>
-                                            </p>
-                                            {room.lastMessageTime && (
-                                                <span className="text-[10px] text-slate-400 pl-5">{formatLastMessageTime(room.lastMessageTime)}</span>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
+                                ))}
                             </div>
-                        ))}
-                    </div>
-                )}
+                        ) : error ? (
+                            <div className="p-4 bg-red-100 text-red-700 rounded-lg">에러 발생: {error}</div>
+                        ) : (
+                            renderRoomCards(rooms, "아직 만들어진 방이 없습니다. 첫 번째 토론방의 주인공이 되어보세요!")
+                        )}
+                    </TabsContent>
+
+                    {/* 2. 나의 기록 탭 콘텐츠 */}
+                    <TabsContent value="my" className="mt-0 animate-in fade-in duration-500">
+                        {!session ? (
+                            <div className="py-24 text-center flex flex-col items-center justify-center bg-white rounded-3xl border border-gray-100 shadow-sm">
+                                <span className="text-5xl mb-4">🔒</span>
+                                <h3 className="text-xl font-bold text-gray-800 mb-2">로그인이 필요합니다</h3>
+                                <p className="text-gray-500 font-medium mb-6">나만의 영화 다이어리를 만들고 과몰입 기록을 보관해 보세요!</p>
+                                <Button onClick={() => setIsLoginModalOpen(true)} className="bg-slate-900 hover:bg-slate-800 text-white rounded-full px-8">
+                                    로그인하기
+                                </Button>
+                            </div>
+                        ) : isMyRoomsLoading ? (
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                                {Array.from({ length: 5 }).map((_, i) => (
+                                    <div key={i} className="flex flex-col gap-3">
+                                        <Skeleton className="aspect-[2/3] w-full rounded-2xl bg-slate-200" />
+                                        <Skeleton className="h-5 w-3/4 bg-slate-200" />
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            renderRoomCards(myRooms, "아직 개설한 토론방이 없습니다. 방을 만들고 기록을 남겨보세요!")
+                        )}
+                    </TabsContent>
+                </Tabs>
             </section>
 
             <Dialog open={isModalOpen} onOpenChange={(open) => { setIsModalOpen(open); if (!open) closeModal(); }}>
