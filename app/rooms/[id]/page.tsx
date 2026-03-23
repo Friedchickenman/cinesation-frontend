@@ -41,7 +41,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
     const hasEntered = useRef(false);
     const isFirstLoad = useRef(true);
 
-    // 방 정보 불러오기
+    // 🌟 방 정보 & TMDB 상세 정보 불러오기 (업그레이드 됨!)
     useEffect(() => {
         const fetchRoomData = async () => {
             try {
@@ -51,13 +51,26 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
 
                 const apiKey = process.env.NEXT_PUBLIC_TMDB_API_KEY;
                 if (roomData.movieId && !roomData.movieId.startsWith("m_")) {
+                    // 🌟 append_to_response=credits 를 추가해서 배우/감독 정보까지 한 번에 가져옵니다!
                     const tmdbRes = await fetch(
-                        `https://api.themoviedb.org/3/movie/${roomData.movieId}?language=ko-KR&api_key=${apiKey}`
+                        `https://api.themoviedb.org/3/movie/${roomData.movieId}?language=ko-KR&append_to_response=credits&api_key=${apiKey}`
                     );
                     if (tmdbRes.ok) {
                         const tmdbData = await tmdbRes.json();
                         roomData.poster_path = tmdbData.poster_path;
+                        roomData.backdrop_path = tmdbData.backdrop_path; // 와이드 배경화면
                         roomData.real_movie_title = tmdbData.title;
+                        roomData.release_year = tmdbData.release_date?.substring(0, 4);
+                        roomData.runtime = tmdbData.runtime;
+                        roomData.genres = tmdbData.genres?.map((g: any) => g.name);
+
+                        // 감독 정보 추출
+                        const director = tmdbData.credits?.crew?.find((c: any) => c.job === 'Director');
+                        roomData.director = director ? director.name : '정보 없음';
+
+                        // 주요 출연진 3명 추출
+                        const cast = tmdbData.credits?.cast?.slice(0, 3).map((c: any) => c.name);
+                        roomData.cast = cast?.length > 0 ? cast.join(', ') : '정보 없음';
                     }
                 }
                 setRoom(roomData);
@@ -71,10 +84,8 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         fetchRoomData();
     }, [roomId]);
 
-    // 첫 입장 시 가장 최근 30개 메시지 불러오기
     useEffect(() => {
         if (!roomId) return;
-
         const fetchInitialChat = async () => {
             try {
                 const res = await fetch(`http://localhost:8080/api/rooms/${roomId}/chats?page=0&size=30`);
@@ -91,11 +102,9 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         fetchInitialChat();
     }, [roomId]);
 
-    // 과거 메시지 추가 로딩
     const loadMoreMessages = async () => {
         if (!hasMore || isLoadingMore) return;
         setIsLoadingMore(true);
-
         try {
             const res = await fetch(`http://localhost:8080/api/rooms/${roomId}/chats?page=${page}&size=30`);
             if (res.ok) {
@@ -112,7 +121,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                         container.scrollTop = container.scrollHeight - previousScrollHeight;
                     }
                 }, 0);
-
                 setPage(prev => prev + 1);
             }
         } catch (err) {
@@ -122,7 +130,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         }
     };
 
-    // 웹소켓 연결
     useEffect(() => {
         if (!roomId) return;
 
@@ -166,7 +173,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                     }
                 });
 
-                // 🌟 방이 OPEN 상태일 때만 입장 메시지를 보냅니다.
                 if (!hasEntered.current && session?.user?.name && room?.status !== 'CLOSED') {
                     const timeString = new Date().toISOString();
                     stompClient.publish({
@@ -208,11 +214,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
     const handleScroll = () => {
         if (!chatContainerRef.current) return;
         const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
-
-        if (scrollTop === 0) {
-            loadMoreMessages();
-        }
-
+        if (scrollTop === 0) loadMoreMessages();
         const isBottom = scrollHeight - scrollTop - clientHeight < 100;
         setIsAutoScroll(isBottom);
         if (isBottom) setShowNewMessageBtn(false);
@@ -328,7 +330,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
     };
 
     return (
-        <div className="max-w-5xl mx-auto py-8 animate-in fade-in duration-500 relative">
+        <div className="max-w-6xl mx-auto py-8 animate-in fade-in duration-500 relative px-4">
             <div className="flex justify-between items-center mb-6 px-2">
                 <Button variant="ghost" onClick={() => router.back()} className="text-sm font-bold text-gray-500 hover:text-gray-900 flex items-center gap-2">
                     ← 메인으로 돌아가기
@@ -348,13 +350,8 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
             </div>
 
             {isLoading ? (
-                <div className="relative bg-slate-900 rounded-3xl overflow-hidden shadow-2xl mb-8 h-64 flex items-center p-8 md:p-12">
+                <div className="relative bg-slate-900 rounded-3xl overflow-hidden shadow-2xl mb-8 h-[400px] flex items-center p-8 md:p-12">
                     <Skeleton className="absolute inset-0 w-full h-full bg-slate-800" />
-                    <div className="relative z-10 space-y-4 w-full max-w-lg">
-                        <Skeleton className="h-6 w-24 bg-slate-700" />
-                        <Skeleton className="h-12 w-3/4 bg-slate-700" />
-                        <Skeleton className="h-6 w-1/2 bg-slate-700" />
-                    </div>
                 </div>
             ) : error ? (
                 <div className="bg-red-50 border border-red-200 rounded-3xl p-8 text-red-600 shadow-sm mb-8">
@@ -362,26 +359,63 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                     <p>{error}</p>
                 </div>
             ) : (
-                <div className="relative bg-slate-900 rounded-3xl text-white shadow-2xl mb-8 overflow-hidden min-h-[320px] flex flex-col justify-end p-8 md:p-12">
-                    {room?.poster_path && (
+                <div className="relative bg-slate-900 rounded-3xl text-white shadow-2xl mb-8 overflow-hidden min-h-[380px] p-8 md:p-12 flex items-center">
+                    {/* 🌟 와이드 배경(Backdrop) 적용! */}
+                    {room?.backdrop_path ? (
                         <>
-                            <div className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-40 mix-blend-overlay" style={{ backgroundImage: `url(https://image.tmdb.org/t/p/w1280${room.poster_path})` }} />
-                            <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/60 to-transparent" />
+                            <div className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-30 mix-blend-overlay" style={{ backgroundImage: `url(https://image.tmdb.org/t/p/w1280${room.backdrop_path})` }} />
+                            <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-slate-900/90 to-transparent" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent" />
                         </>
+                    ) : (
+                        <div className="absolute inset-0 bg-gradient-to-r from-slate-900 to-slate-800" />
                     )}
-                    <div className="relative z-10">
-                        <div className="flex items-center gap-3 mb-4">
-                            {/* 🌟 1. 방 상태에 따라 뱃지 색상과 텍스트 변경! */}
-                            <span className={`px-3 py-1 rounded-md text-xs font-black tracking-widest shadow-lg ${room?.status === 'OPEN' ? 'bg-blue-600 text-white' : 'bg-red-600 text-white'}`}>
-                                {room?.status === 'OPEN' ? 'OPEN' : 'CLOSED'}
-                            </span>
-                            <span className="text-slate-300 text-sm font-medium">No. {room?.id}</span>
-                            <span className="text-blue-300/80 text-sm font-medium border-l border-white/20 pl-3">방장: {room?.creatorName}</span>
+
+                    {/* 🌟 영화 정보 & 호스트 주제 섹션 */}
+                    <div className="relative z-10 w-full flex flex-col md:flex-row gap-8 items-center md:items-end">
+                        {room?.poster_path && (
+                            <img
+                                src={`https://image.tmdb.org/t/p/w500${room.poster_path}`}
+                                alt={room.title}
+                                className="w-36 md:w-52 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-white/10 shrink-0 transform transition-transform hover:scale-105"
+                            />
+                        )}
+                        <div className="flex-1 w-full text-center md:text-left">
+                            <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mb-3">
+                                <span className={`px-3 py-1 rounded-md text-xs font-black tracking-widest shadow-lg ${room?.status === 'OPEN' ? 'bg-blue-600 text-white' : 'bg-red-600 text-white'}`}>
+                                    {room?.status === 'OPEN' ? 'OPEN' : 'CLOSED'}
+                                </span>
+                                {room?.genres?.map((g: string) => (
+                                    <span key={g} className="px-2.5 py-1 bg-white/10 backdrop-blur-md rounded-md text-xs font-medium text-slate-200 border border-white/10">{g}</span>
+                                ))}
+                                {room?.runtime && (
+                                    <span className="px-2.5 py-1 bg-white/10 backdrop-blur-md rounded-md text-xs font-medium text-slate-200 border border-white/10">{room.runtime}분</span>
+                                )}
+                            </div>
+
+                            <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight mb-3 leading-tight drop-shadow-lg">
+                                {room?.real_movie_title || room?.movieId}
+                                {room?.release_year && <span className="text-xl md:text-2xl font-normal text-slate-400 ml-3">({room?.release_year})</span>}
+                            </h1>
+
+                            <p className="text-slate-300 text-sm md:text-base drop-shadow-md mb-6 flex flex-col md:flex-row gap-2 md:gap-6 justify-center md:justify-start">
+                                <span><span className="text-slate-500 mr-2">감독</span> <span className="font-semibold text-white">{room?.director}</span></span>
+                                <span className="hidden md:inline text-slate-600">|</span>
+                                <span><span className="text-slate-500 mr-2">출연</span> <span className="font-semibold text-white">{room?.cast}</span></span>
+                            </p>
+
+                            {/* 🌟 왓챠/레터박스 감성의 호스트 핀셋 메모! */}
+                            <div className="inline-flex flex-col items-start p-5 bg-slate-800/80 backdrop-blur-md rounded-2xl border border-slate-700/50 shadow-xl w-full max-w-2xl relative overflow-hidden group">
+                                <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="text-blue-400 text-sm">👑</span>
+                                    <span className="text-blue-300 text-xs font-bold tracking-wider">호스트 [{room?.creatorName}]의 과몰입 주제</span>
+                                </div>
+                                <p className="text-white text-lg md:text-xl font-medium leading-relaxed italic">
+                                    "{room?.title}"
+                                </p>
+                            </div>
                         </div>
-                        <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight mb-4 leading-tight drop-shadow-lg">{room?.title}</h1>
-                        <p className="text-slate-200 text-lg md:text-xl font-medium drop-shadow-md">
-                            <span className="text-blue-400 font-bold border-b border-blue-400/30 pb-0.5">{room?.real_movie_title || room?.movieId}</span> 에 대한 과몰입 토론방
-                        </p>
                     </div>
                 </div>
             )}
@@ -517,7 +551,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                                 value={inputMessage}
                                 onChange={handleTyping}
                                 onKeyDown={handleKeyDown}
-                                // 🌟 2. 방이 닫혔으면 안내 문구를 바꾸고, textarea를 비활성화합니다.
                                 placeholder={room?.status === 'CLOSED' ? "🔒 7일이 지나 종료된 토론방입니다. (읽기 전용)" : session ? "과몰입 멘트를 입력해 주세요... (Shift+Enter로 줄바꿈)" : "로그인 후 참여 가능합니다."}
                                 disabled={!session || !client?.connected || room?.status === 'CLOSED'}
                                 rows={1}
@@ -526,7 +559,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                             />
                             <Button
                                 onClick={handleSendMessage}
-                                // 🌟 3. 전송 버튼도 방이 닫혔으면 클릭 못하게 막습니다.
                                 disabled={!session || !client?.connected || !inputMessage.trim() || room?.status === 'CLOSED'}
                                 className="h-[52px] px-7 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl disabled:opacity-50 shrink-0"
                             >
