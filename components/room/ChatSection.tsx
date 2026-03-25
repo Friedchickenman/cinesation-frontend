@@ -73,7 +73,8 @@ export default function ChatSection({
                         const isMe = session?.user?.name === msg.sender;
 
                         return (
-                            <div key={idx} className="flex flex-col">
+                            // 🌟 핵심: 이 div 태그에 animate-in fade-in slide-in-from-bottom-3 클래스 추가
+                            <div key={idx} className="flex flex-col animate-in fade-in slide-in-from-bottom-3 duration-300 ease-out">
                                 {isNewDay && (
                                     <div className="flex justify-center my-4 mb-6">
                                         <span className="bg-zinc-900 border border-zinc-800 text-zinc-500 text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full">

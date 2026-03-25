@@ -18,15 +18,55 @@ export default function CreateRoomModal({ isOpen, onClose, onSuccess, session }:
     const [newTitle, setNewTitle] = useState("");
     const [newMovieId, setNewMovieId] = useState("");
 
+    // 🌟 검색 중 로딩 상태 추가
+    const [isSearching, setIsSearching] = useState(false);
+
     const handleSearch = async () => {
         if (!searchQuery.trim()) return;
+
+        setIsSearching(true);
         try {
             const apiKey = process.env.NEXT_PUBLIC_TMDB_API_KEY;
-            const res = await fetch(`https://api.themoviedb.org/3/search/movie?query=${searchQuery}&language=ko-KR&api_key=${apiKey}`);
-            const data = await res.json();
-            setSearchResults(data.results || []);
+            const encodedQuery = encodeURIComponent(searchQuery);
+
+            // 1. 영화 제목으로 기본 검색
+            const titleRes = await fetch(`https://api.themoviedb.org/3/search/movie?query=${encodedQuery}&language=ko-KR&api_key=${apiKey}`);
+            const titleData = await titleRes.json();
+            let allResults = titleData.results || [];
+
+            // 2. 인물(배우/감독) 이름으로 검색
+            const personRes = await fetch(`https://api.themoviedb.org/3/search/person?query=${encodedQuery}&language=ko-KR&api_key=${apiKey}`);
+            const personData = await personRes.json();
+
+            // 🌟 3. 인물이 존재하면 그 사람의 '전체 필모그래피' 긁어오기 (movie_credits API 사용)
+            if (personData.results && personData.results.length > 0) {
+                const personId = personData.results[0].id;
+
+                // discover 대신 person/{id}/movie_credits를 호출하면 페이징 없이 한 번에 다 가져옵니다!
+                const creditsRes = await fetch(`https://api.themoviedb.org/3/person/${personId}/movie_credits?language=ko-KR&api_key=${apiKey}`);
+                const creditsData = await creditsRes.json();
+
+                // 배우로 출연한 작품(cast) + 감독 등 스태프로 참여한 작품(crew) 합치기
+                const combinedCredits = [...(creditsData.cast || []), ...(creditsData.crew || [])];
+
+                // 단역이나 인지도 없는 옛날 영화가 먼저 뜨지 않도록 '인기도(popularity)' 순으로 내림차순 정렬
+                combinedCredits.sort((a, b) => b.popularity - a.popularity);
+
+                allResults = [...allResults, ...combinedCredits];
+            }
+
+            // 4. 중복된 영화 제거 (id 기준)
+            const uniqueResults = Array.from(new Map(allResults.map((movie: any) => [movie.id, movie])).values());
+
+            if (uniqueResults.length === 0) {
+                toast.error("검색 결과가 없습니다.");
+            }
+
+            setSearchResults(uniqueResults);
         } catch (err) {
             toast.error("영화 검색 중 오류가 발생했습니다.");
+        } finally {
+            setIsSearching(false);
         }
     };
 
@@ -77,8 +117,10 @@ export default function CreateRoomModal({ isOpen, onClose, onSuccess, session }:
                     {!selectedMovie ? (
                         <div className="flex flex-col gap-6">
                             <div className="flex gap-2 relative">
-                                <Input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearch()} placeholder="영화 제목 검색..." className="flex-1 bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-600 focus:border-zinc-700 focus:ring-0 rounded-xl h-12 px-4 text-sm font-medium shadow-inner" />
-                                <Button onClick={handleSearch} className="bg-white hover:bg-zinc-200 text-black h-12 px-6 rounded-xl font-bold text-xs shadow-md">검색</Button>
+                                <Input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearch()} placeholder="영화 제목, 감독, 배우 검색..." className="flex-1 bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-600 focus:border-zinc-700 focus:ring-0 rounded-xl h-12 px-4 text-sm font-medium shadow-inner" disabled={isSearching} />
+                                <Button onClick={handleSearch} disabled={isSearching} className="bg-white hover:bg-zinc-200 text-black h-12 px-6 rounded-xl font-bold text-xs shadow-md min-w-[5.5rem]">
+                                    {isSearching ? "검색 중..." : "검색"}
+                                </Button>
                             </div>
                             <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-2">
                                 {searchResults.map((movie: any) => (
