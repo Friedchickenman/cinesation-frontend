@@ -24,6 +24,9 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
     const [messages, setMessages] = useState<any[]>([]);
     const [inputMessage, setInputMessage] = useState("");
 
+    // 🌟 1. 명시적인 웹소켓 연결 상태 추가
+    const [isConnected, setIsConnected] = useState(false);
+
     const [page, setPage] = useState(0);
     const [hasMore, setHasMore] = useState(true);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -128,14 +131,17 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         }
     };
 
-    // 🌟 웹소켓 연결
+    // 🌟 핵심 해결 포인트: 웹소켓 연결 (유령 퇴장 방지)
     useEffect(() => {
-        if (!roomId) return;
+        // 방 정보 로딩 중(isLoading)이거나 에러가 있으면 연결을 시도하지 않음!
+        if (!roomId || isLoading || error) return;
 
         const stompClient = new Client({
             brokerURL: "ws://localhost:8080/ws-chat",
             reconnectDelay: 5000,
             onConnect: () => {
+                setIsConnected(true); // 연결 성공 UI 업데이트
+
                 stompClient.subscribe(`/sub/chat/room/${roomId}`, (message) => {
                     const receivedMsg = JSON.parse(message.body);
 
@@ -182,6 +188,9 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                     hasEntered.current = true;
                 }
             },
+            onWebSocketClose: () => {
+                setIsConnected(false); // 연결 끊김 UI 업데이트
+            }
         });
 
         stompClient.activate();
@@ -197,8 +206,10 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                 });
             }
             stompClient.deactivate();
+            setIsConnected(false);
         };
-    }, [roomId, session, room?.status]);
+        // 🌟 의존성(Dependencies)에서 room?.status를 빼고 isLoading을 넣어 한 번만 실행되게 고정!
+    }, [roomId, session, isLoading, error]);
 
     const handleScroll = () => {
         if (!chatContainerRef.current) return;
