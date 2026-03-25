@@ -1,0 +1,8 @@
+{
+  "Common": {
+    "search": "Search",
+    "searching": "Searching...",
+    "searchPlaceholder": "Search by title, director, or actor...",
+    "cancel": "Cancel"
+  }
+}
