@@ -44,14 +44,14 @@ export default function LoungeBoard({ rooms, myRooms, isLoading, isMyRoomsLoadin
 
         if (processedRooms.length === 0) {
             return (
-                <div className="py-24 text-center flex flex-col items-center justify-center bg-zinc-900/50 rounded-[2rem] border border-zinc-800 shadow-sm mt-4">
+                <div className="py-24 text-center flex flex-col items-center justify-center bg-zinc-900/50 rounded-[2rem] border border-zinc-800 shadow-sm mt-4 w-full">
                     <p className="text-zinc-500 font-medium text-sm">{emptyMessage}</p>
                 </div>
             );
         }
 
         return (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-5 mt-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-5 mt-6 w-full">
                 {processedRooms.map((room: any) => (
                     <div key={room.id} onClick={() => router.push(`/rooms/${room.id}`)} className="group flex flex-col bg-zinc-900/80 rounded-2xl border border-zinc-800/80 shadow-[0_2px_10px_rgb(0,0,0,0.02)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.4)] hover:border-zinc-700 transition-all duration-300 cursor-pointer p-2 hover:-translate-y-1">
                         <div className="relative aspect-[2/3] bg-zinc-950 rounded-xl overflow-hidden mb-3 border border-zinc-800">
@@ -83,7 +83,8 @@ export default function LoungeBoard({ rooms, myRooms, isLoading, isMyRoomsLoadin
 
     return (
         <section className="relative z-10 w-full max-w-[1400px] mx-auto">
-            <Tabs defaultValue="all" className="w-full">
+            {/* 🌟 수정 포인트 1: flex flex-col을 추가하여 메뉴와 카드가 위아래로 쌓이도록 강제 */}
+            <Tabs defaultValue="all" className="w-full flex flex-col">
                 <div className="flex flex-col md:flex-row items-center justify-between mb-4 gap-6 bg-zinc-900/40 p-2 md:p-3 rounded-[2rem] border border-zinc-800/60 shadow-sm backdrop-blur-md">
                     <TabsList className="bg-zinc-950/60 p-1.5 h-auto gap-2 rounded-full w-full md:w-auto border border-zinc-800/80 shadow-inner">
                         <TabsTrigger value="all" className="rounded-full data-[state=active]:bg-zinc-800 data-[state=active]:text-white data-[state=active]:shadow-sm px-6 py-2.5 font-bold text-xs text-zinc-500 transition-all uppercase tracking-widest flex-1 md:flex-none">All Lounge</TabsTrigger>
@@ -113,9 +114,10 @@ export default function LoungeBoard({ rooms, myRooms, isLoading, isMyRoomsLoadin
                     </div>
                 </div>
 
-                <TabsContent value="all" className="mt-0 outline-none">
+                {/* 🌟 수정 포인트 2: w-full을 추가하여 영화 카드가 들어가는 공간을 전체 너비로 확장 */}
+                <TabsContent value="all" className="mt-0 outline-none w-full">
                     {isLoading ? (
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-5 mt-6">
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-5 mt-6 w-full">
                             {Array.from({ length: 10 }).map((_, i) => (
                                 <div key={i} className="flex flex-col bg-zinc-900 p-2 rounded-2xl border border-zinc-800">
                                     <Skeleton className="aspect-[2/3] w-full rounded-xl bg-zinc-800 mb-3" />
@@ -129,9 +131,10 @@ export default function LoungeBoard({ rooms, myRooms, isLoading, isMyRoomsLoadin
                     )}
                 </TabsContent>
 
-                <TabsContent value="my" className="mt-0 outline-none">
+                {/* 🌟 수정 포인트 3: w-full을 추가하여 영화 카드가 들어가는 공간을 전체 너비로 확장 */}
+                <TabsContent value="my" className="mt-0 outline-none w-full">
                     {!session ? (
-                        <div className="py-24 text-center flex flex-col items-center justify-center bg-zinc-900/50 rounded-[2rem] border border-zinc-800 shadow-sm mt-4">
+                        <div className="py-24 text-center flex flex-col items-center justify-center bg-zinc-900/50 rounded-[2rem] border border-zinc-800 shadow-sm mt-4 w-full">
                             <div className="w-16 h-16 bg-zinc-900 rounded-full flex items-center justify-center mb-5 text-4xl border border-zinc-800">🔒</div>
                             <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">로그인이 필요합니다</h3>
                             <p className="text-zinc-400 font-medium mb-8 text-base">나만의 과몰입 기록을 보관하고 확인하세요.</p>
@@ -140,7 +143,7 @@ export default function LoungeBoard({ rooms, myRooms, isLoading, isMyRoomsLoadin
                             </Button>
                         </div>
                     ) : isMyRoomsLoading ? (
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-5 mt-6">
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-5 mt-6 w-full">
                             {Array.from({ length: 5 }).map((_, i) => (
                                 <div key={i} className="flex flex-col bg-zinc-900 p-2 rounded-2xl border border-zinc-800">
                                     <Skeleton className="aspect-[2/3] w-full rounded-xl bg-zinc-800 mb-3" />

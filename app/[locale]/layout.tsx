@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Geist } from "next/font/google";
-import "./globals.css";
+import "@/app/globals.css";
 import Link from "next/link";
 import Providers from "./Providers";
 import AuthButton from "@/components/AuthButton";
