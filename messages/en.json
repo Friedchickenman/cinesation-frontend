@@ -38,5 +38,12 @@
     "warningInput": "Please enter both movie and topic!",
     "successCreate": "🎉 Discussion lounge successfully created!",
     "errorCreate": "Failed to create lounge."
+  },
+  "LoginModal": {
+    "title": "Login",
+    "desc1": "Google login is required",
+    "desc2": "to create a lounge.",
+    "googleBtn": "Continue with Google",
+    "closeBtn": "Close"
   }
 }
