@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { useTranslations } from "next-intl"; // 🌟 번역 훅
+import { useTranslations, useLocale } from "next-intl";
 
 interface ChatSectionProps {
     room: any;
@@ -28,7 +28,11 @@ export default function ChatSection({
                                         onScroll, onTyping, onKeyDown, onSendMessage, onScrollToBottom
                                     }: ChatSectionProps) {
 
-    const t = useTranslations("RoomDetail"); // 🌟 번역기
+    const t = useTranslations("RoomDetail");
+    const locale = useLocale(); // 🌟 2. 현재 접속 중인 언어(ko/en) 가져오기
+
+    // 🌟 3. 날짜/시간 포맷팅을 위한 언어 코드 결정 (en이면 en-US, ko면 ko-KR)
+    const timeFormatLang = locale === 'en' ? 'en-US' : 'ko-KR';
 
     return (
         <div className="flex flex-col h-[650px] bg-[#09090B] border border-zinc-800 rounded-[2rem] shadow-2xl overflow-hidden relative">
@@ -64,8 +68,11 @@ export default function ChatSection({
                         const isValidDate = !isNaN(currentDate.getTime()) && msg.time?.includes('T');
 
                         if (isValidDate) {
-                            displayTime = currentDate.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-                            displayDate = currentDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+                            // 🌟 4. 하드코딩을 없애고 timeFormatLang 변수를 투입!
+                            displayTime = currentDate.toLocaleTimeString(timeFormatLang, { hour: '2-digit', minute: '2-digit' });
+
+                            // 🌟 (보너스) 날짜 표시(MAR 24, 2026 등)도 언어에 맞춰 바뀌도록 수정!
+                            displayDate = currentDate.toLocaleDateString(timeFormatLang, { year: 'numeric', month: 'short', day: 'numeric' });
 
                             if (idx === 0) isNewDay = true;
                             else {
@@ -88,7 +95,6 @@ export default function ChatSection({
                                     </div>
                                 )}
 
-                                {/* 🌟 핵심 수정 포인트: 입장/퇴장 메시지를 가로채서 번역된 문구로 출력합니다 */}
                                 {msg.type === "ENTER" || msg.type === "LEAVE" ? (
                                     <div className="flex justify-center my-2">
                                         <span className="bg-zinc-900 border border-zinc-800 text-zinc-400 text-[11px] font-medium px-5 py-1.5 rounded-full shadow-sm animate-in fade-in zoom-in duration-300">
