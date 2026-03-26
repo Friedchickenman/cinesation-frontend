@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTranslations } from "next-intl"; // 🌟 번역 훅
 
@@ -11,6 +12,51 @@ interface RoomMovieBannerProps {
 
 export default function RoomMovieBanner({ room, isLoading, error }: RoomMovieBannerProps) {
     const t = useTranslations("RoomDetail"); // 🌟 번역기
+
+    // 🌟 카운트다운 타이머를 위한 상태 (State) 추가
+    const [timeLeft, setTimeLeft] = useState<string>("");
+    const [isUrgent, setIsUrgent] = useState(false);
+
+    // 🌟 실시간 타이머 계산 로직
+    useEffect(() => {
+        if (!room || room.status === 'CLOSED') return;
+
+        // 방 생성일(createdAt) 기준으로 7일 뒤(타겟 타임)를 계산합니다.
+        // (만약 백엔드에서 createdAt을 안 주면, 현재 시간 기준으로 작동하도록 임시 세팅)
+        const createdDate = room.createdAt ? new Date(room.createdAt) : new Date();
+        const targetDate = new Date(createdDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+        const timer = setInterval(() => {
+            const now = new Date();
+            const diff = targetDate.getTime() - now.getTime();
+
+            // 시간이 다 지나면 종료 처리
+            if (diff <= 0) {
+                setTimeLeft(t('expired')); // "종료됨" 또는 "Expired"
+                setIsUrgent(false);
+                clearInterval(timer);
+                return;
+            }
+
+            // 남은 일, 시간, 분, 초 계산
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+            const mins = Math.floor((diff / 1000 / 60) % 60);
+            const secs = Math.floor((diff / 1000) % 60);
+
+            // 포맷팅 (예: 6d 23:59:59)
+            let timeString = '';
+            if (days > 0) timeString += `${days}d `;
+            timeString += `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+
+            setTimeLeft(timeString);
+
+            // 🌟 남은 시간이 24시간 미만(0일)이면 긴급(Urgent) 모드로 전환!
+            setIsUrgent(days === 0);
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [room, t]);
 
     if (isLoading) {
         return (
@@ -55,11 +101,20 @@ export default function RoomMovieBanner({ room, isLoading, error }: RoomMovieBan
                         <span className={`px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase shadow-sm border ${room?.status === 'OPEN' ? 'bg-[#00E676] text-black border-[#00E676]' : 'bg-zinc-800 text-zinc-300 border-zinc-700'}`}>
                             {room?.status === 'OPEN' ? 'OPEN' : 'CLOSED'}
                         </span>
+
+                        {/* 🌟 여기에 1초마다 줄어드는 카운트다운 타이머가 들어갑니다! */}
+                        {room?.status === 'OPEN' && timeLeft && (
+                            <span className={`px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase border backdrop-blur-md shadow-sm transition-colors flex items-center gap-1.5 ${isUrgent ? 'bg-red-500/20 text-red-400 border-red-500/50 animate-pulse' : 'bg-zinc-900/80 text-zinc-300 border-zinc-700/50'}`}>
+                                ⏳ {t('timeLeft')} {timeLeft}
+                            </span>
+                        )}
+
                         {room?.genres?.map((g: string) => (
                             <span key={g} className="px-3 py-1 bg-zinc-900/80 backdrop-blur-md rounded-full text-[10px] font-bold tracking-wider text-zinc-300 border border-zinc-700/50">{g}</span>
                         ))}
+                        {/* 🌟 수정 포인트: room.runtime 뒤에 t('min') 적용! */}
                         {room?.runtime && (
-                            <span className="px-3 py-1 bg-zinc-900/80 backdrop-blur-md rounded-full text-[10px] font-bold tracking-wider text-zinc-300 border border-zinc-700/50">{room.runtime}분</span>
+                            <span className="px-3 py-1 bg-zinc-900/80 backdrop-blur-md rounded-full text-[10px] font-bold tracking-wider text-zinc-300 border border-zinc-700/50">{room.runtime}{t('min')}</span>
                         )}
                     </div>
 

@@ -73,7 +73,10 @@
     "toastCopied": "🔗 Link copied to clipboard!",
     "anonymous": "Anonymous User",
     "msgEnter": " has entered the immersive lounge! 🍿",
-    "msgLeave": " has left the lounge. 👋"
+    "msgLeave": " has left the lounge. 👋",
+    "timeLeft": "Time Left",
+    "expired": "Expired",
+    "min": " min"
   },
   "Auth": {
     "login": "Login",

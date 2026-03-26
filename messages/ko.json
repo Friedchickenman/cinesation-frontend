@@ -71,9 +71,12 @@
     "toastNoChatToSave": "저장할 대화 내역이 없습니다.",
     "toastChatSaved": "💾 대화 기록이 저장되었습니다!",
     "toastCopied": "🔗 링크가 클립보드에 복사되었습니다!",
-    "anonymous": "익명 유저","anonymous": "익명 유저",
+    "anonymous": "익명 유저",
     "msgEnter": "님이 과몰입 방에 입장하셨습니다! 🍿",
-    "msgLeave": "님이 방을 떠났습니다. 👋"
+    "msgLeave": "님이 방을 떠났습니다. 👋",
+    "timeLeft": "남은 시간",
+    "expired": "종료됨",
+    "min": "분"
   },
   "Auth": {
     "login": "로그인",
