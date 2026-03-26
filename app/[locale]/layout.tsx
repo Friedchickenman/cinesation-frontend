@@ -6,6 +6,7 @@ import Providers from "./Providers";
 import AuthButton from "@/components/AuthButton";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
+import LanguageToggle from "@/components/LanguageToggle";
 
 // 🌟 1. 다국어 처리를 위한 next-intl 라이브러리 임포트
 import { NextIntlClientProvider } from 'next-intl';
@@ -53,7 +54,8 @@ export default async function RootLayout({
                                 </span>
                             </Link>
                             <div className="flex items-center gap-4">
-                                {/* 🌐 추후 이 위치에 언어 변경(한/영) 토글 버튼을 넣을 예정입니다 */}
+                                {/* 🌟 여기에 언어 변경(한/영) 토글 버튼이 들어갔습니다! */}
+                                <LanguageToggle />
                                 <AuthButton />
                             </div>
                         </div>

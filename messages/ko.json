@@ -1,8 +1,42 @@
 {
-  "Common": {
-    "search": "검색",
-    "searching": "검색 중...",
+  "Hero": {
+    "badge": "Time-Limited Lounge",
+    "title": "CINESATION.",
+    "subtitle1": "영화의 여운, 가슴 벅찬 감동.",
+    "subtitle2": "단 7일 동안 열리는 비밀스러운 과몰입 라운지.",
+    "createBtn": "라운지 개설하기"
+  },
+  "LoungeBoard": {
+    "tabAll": "All Lounge",
+    "tabMy": "My Archive",
+    "statusAll": "ALL",
+    "statusOpen": "OPEN",
+    "statusClosed": "CLOSED",
+    "sortLatest": "LATEST",
+    "sortOldest": "OLDEST",
+    "sortActive": "🔥 ACTIVE",
+    "noMessage": "대화가 없습니다",
+    "emptyAll": "조회된 라운지가 없습니다. 첫 방을 만들어보세요!",
+    "emptyMy": "아직 참여한 토론 기록이 없습니다.",
+    "loginRequired": "로그인이 필요합니다",
+    "loginDesc": "나만의 과몰입 기록을 보관하고 확인하세요.",
+    "loginBtn": "구글 계정으로 시작"
+  },
+  "CreateRoomModal": {
+    "titleSearch": "SEARCH MOVIE",
+    "titleTopic": "SET TOPIC",
     "searchPlaceholder": "영화 제목, 감독, 배우 검색...",
-    "cancel": "취소"
+    "searchBtn": "검색",
+    "searchingBtn": "검색 중...",
+    "changeBtn": "변경",
+    "topicLabel": "토론 주제 (Topic)",
+    "topicPlaceholder": "명확한 주제를 입력하세요.",
+    "cancelBtn": "취소",
+    "createBtn": "방 생성하기",
+    "noResult": "검색 결과가 없습니다.",
+    "errorSearch": "영화 검색 중 오류가 발생했습니다.",
+    "warningInput": "영화와 토론방 제목을 모두 입력해 주세요!",
+    "successCreate": "🎉 토론방이 성공적으로 개설되었습니다!",
+    "errorCreate": "방 생성에 실패했습니다."
   }
 }

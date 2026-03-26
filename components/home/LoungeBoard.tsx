@@ -1,5 +1,8 @@
+"use client";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,6 +19,8 @@ interface LoungeBoardProps {
 
 export default function LoungeBoard({ rooms, myRooms, isLoading, isMyRoomsLoading, session, onRequireLogin }: LoungeBoardProps) {
     const router = useRouter();
+    const t = useTranslations("LoungeBoard"); // 🌟 번역기 장착!
+
     const [filterStatus, setFilterStatus] = useState("ALL");
     const [sortBy, setSortBy] = useState("LATEST");
 
@@ -62,7 +67,7 @@ export default function LoungeBoard({ rooms, myRooms, isLoading, isMyRoomsLoadin
                             )}
                             <div className="absolute top-2 left-2 z-10">
                                 <span className={`px-2.5 py-0.5 text-[9px] font-black tracking-widest uppercase rounded-full border shadow-sm backdrop-blur-md ${room.status === 'OPEN' ? 'bg-[#00E676] text-black border-[#00E676]' : 'bg-zinc-800/90 text-zinc-400 border-zinc-700'}`}>
-                                    {room.status === 'OPEN' ? 'OPEN' : 'CLOSED'}
+                                    {room.status === 'OPEN' ? t('statusOpen') : t('statusClosed')}
                                 </span>
                             </div>
                         </div>
@@ -71,7 +76,7 @@ export default function LoungeBoard({ rooms, myRooms, isLoading, isMyRoomsLoadin
                             <div className="mt-auto pt-3 flex items-center justify-between border-t border-zinc-800/50">
                                 <p className="text-[11px] text-zinc-500 font-medium line-clamp-1 flex items-center gap-1.5">
                                     <span className="opacity-70">💬</span>
-                                    <span className="truncate">{room.lastMessage || "대화가 없습니다"}</span>
+                                    <span className="truncate">{room.lastMessage || t('noMessage')}</span>
                                 </p>
                             </div>
                         </div>
@@ -83,12 +88,15 @@ export default function LoungeBoard({ rooms, myRooms, isLoading, isMyRoomsLoadin
 
     return (
         <section className="relative z-10 w-full max-w-[1400px] mx-auto">
-            {/* 🌟 수정 포인트 1: flex flex-col을 추가하여 메뉴와 카드가 위아래로 쌓이도록 강제 */}
             <Tabs defaultValue="all" className="w-full flex flex-col">
                 <div className="flex flex-col md:flex-row items-center justify-between mb-4 gap-6 bg-zinc-900/40 p-2 md:p-3 rounded-[2rem] border border-zinc-800/60 shadow-sm backdrop-blur-md">
                     <TabsList className="bg-zinc-950/60 p-1.5 h-auto gap-2 rounded-full w-full md:w-auto border border-zinc-800/80 shadow-inner">
-                        <TabsTrigger value="all" className="rounded-full data-[state=active]:bg-zinc-800 data-[state=active]:text-white data-[state=active]:shadow-sm px-6 py-2.5 font-bold text-xs text-zinc-500 transition-all uppercase tracking-widest flex-1 md:flex-none">All Lounge</TabsTrigger>
-                        <TabsTrigger value="my" className="rounded-full data-[state=active]:bg-zinc-800 data-[state=active]:text-white data-[state=active]:shadow-sm px-6 py-2.5 font-bold text-xs text-zinc-500 transition-all uppercase tracking-widest flex-1 md:flex-none">My Archive</TabsTrigger>
+                        <TabsTrigger value="all" className="rounded-full data-[state=active]:bg-zinc-800 data-[state=active]:text-white data-[state=active]:shadow-sm px-6 py-2.5 font-bold text-xs text-zinc-500 transition-all uppercase tracking-widest flex-1 md:flex-none">
+                            {t('tabAll')}
+                        </TabsTrigger>
+                        <TabsTrigger value="my" className="rounded-full data-[state=active]:bg-zinc-800 data-[state=active]:text-white data-[state=active]:shadow-sm px-6 py-2.5 font-bold text-xs text-zinc-500 transition-all uppercase tracking-widest flex-1 md:flex-none">
+                            {t('tabMy')}
+                        </TabsTrigger>
                     </TabsList>
                     <div className="flex items-center gap-3 w-full md:w-auto px-2 md:px-0">
                         <Select value={filterStatus} onValueChange={setFilterStatus}>
@@ -96,9 +104,9 @@ export default function LoungeBoard({ rooms, myRooms, isLoading, isMyRoomsLoadin
                                 <SelectValue placeholder="STATUS" />
                             </SelectTrigger>
                             <SelectContent className="bg-zinc-900 border-zinc-800 rounded-2xl text-zinc-300 shadow-xl">
-                                <SelectItem value="ALL" className="text-xs font-bold">ALL</SelectItem>
-                                <SelectItem value="OPEN" className="text-[#00E676] font-bold text-xs">OPEN</SelectItem>
-                                <SelectItem value="CLOSED" className="font-bold text-xs text-zinc-500">CLOSED</SelectItem>
+                                <SelectItem value="ALL" className="text-xs font-bold">{t('statusAll')}</SelectItem>
+                                <SelectItem value="OPEN" className="text-[#00E676] font-bold text-xs">{t('statusOpen')}</SelectItem>
+                                <SelectItem value="CLOSED" className="font-bold text-xs text-zinc-500">{t('statusClosed')}</SelectItem>
                             </SelectContent>
                         </Select>
                         <Select value={sortBy} onValueChange={setSortBy}>
@@ -106,15 +114,14 @@ export default function LoungeBoard({ rooms, myRooms, isLoading, isMyRoomsLoadin
                                 <SelectValue placeholder="SORT" />
                             </SelectTrigger>
                             <SelectContent className="bg-zinc-900 border-zinc-800 rounded-2xl text-zinc-300 shadow-xl">
-                                <SelectItem value="LATEST" className="text-xs font-bold">LATEST</SelectItem>
-                                <SelectItem value="OLDEST" className="text-xs font-bold">OLDEST</SelectItem>
-                                <SelectItem value="ACTIVE" className="text-blue-400 font-bold text-xs">🔥 ACTIVE</SelectItem>
+                                <SelectItem value="LATEST" className="text-xs font-bold">{t('sortLatest')}</SelectItem>
+                                <SelectItem value="OLDEST" className="text-xs font-bold">{t('sortOldest')}</SelectItem>
+                                <SelectItem value="ACTIVE" className="text-blue-400 font-bold text-xs">{t('sortActive')}</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
                 </div>
 
-                {/* 🌟 수정 포인트 2: w-full을 추가하여 영화 카드가 들어가는 공간을 전체 너비로 확장 */}
                 <TabsContent value="all" className="mt-0 outline-none w-full">
                     {isLoading ? (
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-5 mt-6 w-full">
@@ -127,19 +134,18 @@ export default function LoungeBoard({ rooms, myRooms, isLoading, isMyRoomsLoadin
                             ))}
                         </div>
                     ) : (
-                        renderRoomCards(rooms, "조회된 라운지가 없습니다. 첫 방을 만들어보세요!", "all")
+                        renderRoomCards(rooms, t('emptyAll'), "all")
                     )}
                 </TabsContent>
 
-                {/* 🌟 수정 포인트 3: w-full을 추가하여 영화 카드가 들어가는 공간을 전체 너비로 확장 */}
                 <TabsContent value="my" className="mt-0 outline-none w-full">
                     {!session ? (
                         <div className="py-24 text-center flex flex-col items-center justify-center bg-zinc-900/50 rounded-[2rem] border border-zinc-800 shadow-sm mt-4 w-full">
                             <div className="w-16 h-16 bg-zinc-900 rounded-full flex items-center justify-center mb-5 text-4xl border border-zinc-800">🔒</div>
-                            <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">로그인이 필요합니다</h3>
-                            <p className="text-zinc-400 font-medium mb-8 text-base">나만의 과몰입 기록을 보관하고 확인하세요.</p>
+                            <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">{t('loginRequired')}</h3>
+                            <p className="text-zinc-400 font-medium mb-8 text-base">{t('loginDesc')}</p>
                             <Button onClick={onRequireLogin} className="bg-white hover:bg-zinc-200 text-black font-semibold rounded-full px-8 py-6 shadow-md text-sm">
-                                구글 계정으로 시작
+                                {t('loginBtn')}
                             </Button>
                         </div>
                     ) : isMyRoomsLoading ? (
@@ -152,7 +158,7 @@ export default function LoungeBoard({ rooms, myRooms, isLoading, isMyRoomsLoadin
                             ))}
                         </div>
                     ) : (
-                        renderRoomCards(myRooms, "아직 참여한 토론 기록이 없습니다.", "my")
+                        renderRoomCards(myRooms, t('emptyMy'), "my")
                     )}
                 </TabsContent>
             </Tabs>

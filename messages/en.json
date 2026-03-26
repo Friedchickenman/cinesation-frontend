@@ -1,8 +1,42 @@
 {
-  "Common": {
-    "search": "Search",
-    "searching": "Searching...",
-    "searchPlaceholder": "Search by title, director, or actor...",
-    "cancel": "Cancel"
+  "Hero": {
+    "badge": "Time-Limited Lounge",
+    "title": "CINESATION.",
+    "subtitle1": "The lingering emotions of a film, a breathtakingly moving experience.",
+    "subtitle2": "A secret immersive lounge open for only 7 days.",
+    "createBtn": "Create Lounge"
+  },
+  "LoungeBoard": {
+    "tabAll": "All Lounge",
+    "tabMy": "My Archive",
+    "statusAll": "ALL",
+    "statusOpen": "OPEN",
+    "statusClosed": "CLOSED",
+    "sortLatest": "LATEST",
+    "sortOldest": "OLDEST",
+    "sortActive": "🔥 ACTIVE",
+    "noMessage": "No messages yet",
+    "emptyAll": "No lounges found. Be the first to create one!",
+    "emptyMy": "You haven't participated in any discussions yet.",
+    "loginRequired": "Login Required",
+    "loginDesc": "Keep and check your own immersive discussion records.",
+    "loginBtn": "Continue with Google"
+  },
+  "CreateRoomModal": {
+    "titleSearch": "SEARCH MOVIE",
+    "titleTopic": "SET TOPIC",
+    "searchPlaceholder": "Search for movies, directors, actors...",
+    "searchBtn": "Search",
+    "searchingBtn": "Searching...",
+    "changeBtn": "Change",
+    "topicLabel": "Discussion Topic",
+    "topicPlaceholder": "Enter a clear topic.",
+    "cancelBtn": "Cancel",
+    "createBtn": "Create Lounge",
+    "noResult": "No search results found.",
+    "errorSearch": "An error occurred while searching.",
+    "warningInput": "Please enter both movie and topic!",
+    "successCreate": "🎉 Discussion lounge successfully created!",
+    "errorCreate": "Failed to create lounge."
   }
 }

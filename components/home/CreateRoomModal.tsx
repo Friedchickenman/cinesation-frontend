@@ -3,6 +3,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+// 🌟 1. 현재 언어(ko/en)를 알기 위한 useLocale과 번역을 위한 useTranslations 임포트
+import { useTranslations, useLocale } from "next-intl";
 
 interface CreateRoomModalProps {
     isOpen: boolean;
@@ -21,6 +23,13 @@ export default function CreateRoomModal({ isOpen, onClose, onSuccess, session }:
     // 🌟 검색 중 로딩 상태 추가
     const [isSearching, setIsSearching] = useState(false);
 
+    // 🌟 2. 언어 및 번역기 장착
+    const locale = useLocale();
+    const t = useTranslations("CreateRoomModal");
+
+    // 🌟 3. 현재 접속 언어에 따라 TMDB API 언어 파라미터 동적 변경! (핵심)
+    const tmdbLang = locale === 'en' ? 'en-US' : 'ko-KR';
+
     const handleSearch = async () => {
         if (!searchQuery.trim()) return;
 
@@ -29,21 +38,21 @@ export default function CreateRoomModal({ isOpen, onClose, onSuccess, session }:
             const apiKey = process.env.NEXT_PUBLIC_TMDB_API_KEY;
             const encodedQuery = encodeURIComponent(searchQuery);
 
-            // 1. 영화 제목으로 기본 검색
-            const titleRes = await fetch(`https://api.themoviedb.org/3/search/movie?query=${encodedQuery}&language=ko-KR&api_key=${apiKey}`);
+            // 1. 영화 제목으로 기본 검색 (🌟 동적 언어 변수 ${tmdbLang} 적용)
+            const titleRes = await fetch(`https://api.themoviedb.org/3/search/movie?query=${encodedQuery}&language=${tmdbLang}&api_key=${apiKey}`);
             const titleData = await titleRes.json();
             let allResults = titleData.results || [];
 
-            // 2. 인물(배우/감독) 이름으로 검색
-            const personRes = await fetch(`https://api.themoviedb.org/3/search/person?query=${encodedQuery}&language=ko-KR&api_key=${apiKey}`);
+            // 2. 인물(배우/감독) 이름으로 검색 (🌟 동적 언어 변수 ${tmdbLang} 적용)
+            const personRes = await fetch(`https://api.themoviedb.org/3/search/person?query=${encodedQuery}&language=${tmdbLang}&api_key=${apiKey}`);
             const personData = await personRes.json();
 
-            // 🌟 3. 인물이 존재하면 그 사람의 '전체 필모그래피' 긁어오기 (movie_credits API 사용)
+            // 3. 인물이 존재하면 그 사람의 '전체 필모그래피' 긁어오기
             if (personData.results && personData.results.length > 0) {
                 const personId = personData.results[0].id;
 
-                // discover 대신 person/{id}/movie_credits를 호출하면 페이징 없이 한 번에 다 가져옵니다!
-                const creditsRes = await fetch(`https://api.themoviedb.org/3/person/${personId}/movie_credits?language=ko-KR&api_key=${apiKey}`);
+                // 🌟 동적 언어 변수 ${tmdbLang} 적용
+                const creditsRes = await fetch(`https://api.themoviedb.org/3/person/${personId}/movie_credits?language=${tmdbLang}&api_key=${apiKey}`);
                 const creditsData = await creditsRes.json();
 
                 // 배우로 출연한 작품(cast) + 감독 등 스태프로 참여한 작품(crew) 합치기
@@ -59,12 +68,12 @@ export default function CreateRoomModal({ isOpen, onClose, onSuccess, session }:
             const uniqueResults = Array.from(new Map(allResults.map((movie: any) => [movie.id, movie])).values());
 
             if (uniqueResults.length === 0) {
-                toast.error("검색 결과가 없습니다.");
+                toast.error(t('noResult')); // 🌟 번역 적용
             }
 
             setSearchResults(uniqueResults);
         } catch (err) {
-            toast.error("영화 검색 중 오류가 발생했습니다.");
+            toast.error(t('errorSearch')); // 🌟 번역 적용
         } finally {
             setIsSearching(false);
         }
@@ -81,7 +90,7 @@ export default function CreateRoomModal({ isOpen, onClose, onSuccess, session }:
 
     const handleCreateRoom = async () => {
         if (!newMovieId || !newTitle.trim()) {
-            toast.warning("영화와 토론방 제목을 모두 입력해 주세요!");
+            toast.warning(t('warningInput')); // 🌟 번역 적용
             return;
         }
         try {
@@ -96,9 +105,9 @@ export default function CreateRoomModal({ isOpen, onClose, onSuccess, session }:
             });
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.message || "방 생성에 실패했습니다.");
+                throw new Error(errorData.message || t('errorCreate')); // 🌟 번역 적용
             }
-            toast.success("🎉 토론방이 성공적으로 개설되었습니다!");
+            toast.success(t('successCreate')); // 🌟 번역 적용
             onSuccess();
             closeModal();
         } catch (err: any) {
@@ -110,16 +119,18 @@ export default function CreateRoomModal({ isOpen, onClose, onSuccess, session }:
         <Dialog open={isOpen} onOpenChange={(open) => { if (!open) closeModal(); }}>
             <DialogContent className="sm:max-w-xl bg-zinc-900 border border-zinc-800 overflow-hidden max-h-[85vh] flex flex-col p-0 shadow-2xl rounded-[1.5rem] text-zinc-100 selection:bg-[#00E676]/50">
                 <DialogHeader className="p-6 border-b border-zinc-800 bg-zinc-950/50 shrink-0 text-center">
-                    <DialogTitle className="text-lg font-bold text-white uppercase tracking-wider">{selectedMovie ? "Set Topic" : "Search Movie"}</DialogTitle>
+                    <DialogTitle className="text-lg font-bold text-white uppercase tracking-wider">
+                        {selectedMovie ? t('titleTopic') : t('titleSearch')} {/* 🌟 번역 적용 */}
+                    </DialogTitle>
                 </DialogHeader>
 
                 <div className="p-6 overflow-y-auto bg-zinc-950/20">
                     {!selectedMovie ? (
                         <div className="flex flex-col gap-6">
                             <div className="flex gap-2 relative">
-                                <Input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearch()} placeholder="영화 제목, 감독, 배우 검색..." className="flex-1 bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-600 focus:border-zinc-700 focus:ring-0 rounded-xl h-12 px-4 text-sm font-medium shadow-inner" disabled={isSearching} />
+                                <Input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearch()} placeholder={t('searchPlaceholder')} className="flex-1 bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-600 focus:border-zinc-700 focus:ring-0 rounded-xl h-12 px-4 text-sm font-medium shadow-inner" disabled={isSearching} />
                                 <Button onClick={handleSearch} disabled={isSearching} className="bg-white hover:bg-zinc-200 text-black h-12 px-6 rounded-xl font-bold text-xs shadow-md min-w-[5.5rem]">
-                                    {isSearching ? "검색 중..." : "검색"}
+                                    {isSearching ? t('searchingBtn') : t('searchBtn')} {/* 🌟 번역 적용 */}
                                 </Button>
                             </div>
                             <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-2">
@@ -141,7 +152,9 @@ export default function CreateRoomModal({ isOpen, onClose, onSuccess, session }:
                     ) : (
                         <div className="space-y-6 animate-fade-in">
                             <div className="flex items-start gap-5 relative p-4 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-sm">
-                                <button onClick={() => { setSelectedMovie(null); setNewMovieId(""); }} className="absolute top-4 right-4 text-[11px] font-semibold text-zinc-500 hover:text-white transition-colors underline underline-offset-4 tracking-tight">변경</button>
+                                <button onClick={() => { setSelectedMovie(null); setNewMovieId(""); }} className="absolute top-4 right-4 text-[11px] font-semibold text-zinc-500 hover:text-white transition-colors underline underline-offset-4 tracking-tight">
+                                    {t('changeBtn')} {/* 🌟 번역 적용 */}
+                                </button>
                                 <div className="w-20 aspect-[2/3] bg-zinc-950 shrink-0 overflow-hidden rounded-xl border border-zinc-800">
                                     {selectedMovie.poster_path ? (
                                         <img src={`https://image.tmdb.org/t/p/w200${selectedMovie.poster_path}`} alt={selectedMovie.title} className="w-full h-full object-cover" />
@@ -153,16 +166,22 @@ export default function CreateRoomModal({ isOpen, onClose, onSuccess, session }:
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-zinc-400 mb-2.5 ml-1 uppercase tracking-wider">토론 주제 (Topic)</label>
-                                <Input type="text" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="명확한 주제를 입력하세요." className="bg-zinc-900 border-zinc-800 text-white focus:border-zinc-700 focus:ring-0 rounded-xl h-12 px-4 text-sm font-medium shadow-inner" />
+                                <label className="block text-xs font-bold text-zinc-400 mb-2.5 ml-1 uppercase tracking-wider">
+                                    {t('topicLabel')} {/* 🌟 번역 적용 */}
+                                </label>
+                                <Input type="text" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder={t('topicPlaceholder')} className="bg-zinc-900 border-zinc-800 text-white focus:border-zinc-700 focus:ring-0 rounded-xl h-12 px-4 text-sm font-medium shadow-inner" />
                             </div>
                         </div>
                     )}
                 </div>
 
                 <DialogFooter className="p-5 bg-zinc-900 border-t border-zinc-800 shrink-0 flex justify-end gap-2.5">
-                    <Button variant="ghost" onClick={closeModal} className="text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-xl text-xs font-bold px-6 h-11 transition-colors">취소</Button>
-                    <Button onClick={handleCreateRoom} disabled={!selectedMovie || !newTitle.trim()} className="bg-white hover:bg-zinc-200 text-black rounded-xl font-bold px-7 h-11 text-xs shadow-md transition-all hover:shadow-[0_4px_20px_rgba(255,255,255,0.1)]">방 생성하기</Button>
+                    <Button variant="ghost" onClick={closeModal} className="text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-xl text-xs font-bold px-6 h-11 transition-colors">
+                        {t('cancelBtn')} {/* 🌟 번역 적용 */}
+                    </Button>
+                    <Button onClick={handleCreateRoom} disabled={!selectedMovie || !newTitle.trim()} className="bg-white hover:bg-zinc-200 text-black rounded-xl font-bold px-7 h-11 text-xs shadow-md transition-all hover:shadow-[0_4px_20px_rgba(255,255,255,0.1)]">
+                        {t('createBtn')} {/* 🌟 번역 적용 */}
+                    </Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
