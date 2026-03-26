@@ -4,8 +4,8 @@ import { use, useEffect, useState, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { Client } from "@stomp/stompjs";
 import { toast } from "sonner";
+import { useLocale, useTranslations } from "next-intl"; // 🌟 번역 훅 추가
 
-// 🌟 분리한 컴포넌트 임포트
 import RoomActionHeader from "@/components/room/RoomActionHeader";
 import RoomMovieBanner from "@/components/room/RoomMovieBanner";
 import ChatSection from "@/components/room/ChatSection";
@@ -14,6 +14,11 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
     const resolvedParams = use(params);
     const roomId = resolvedParams.id;
     const { data: session } = useSession();
+
+    // 🌟 언어 및 번역기 세팅
+    const locale = useLocale();
+    const tmdbLang = locale === 'en' ? 'en-US' : 'ko-KR';
+    const t = useTranslations("RoomDetail");
 
     const [room, setRoom] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -24,9 +29,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
     const [messages, setMessages] = useState<any[]>([]);
     const [inputMessage, setInputMessage] = useState("");
 
-    // 🌟 1. 명시적인 웹소켓 연결 상태 추가
     const [isConnected, setIsConnected] = useState(false);
-
     const [page, setPage] = useState(0);
     const [hasMore, setHasMore] = useState(true);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -44,18 +47,18 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
     const hasEntered = useRef(false);
     const isFirstLoad = useRef(true);
 
-    // 🌟 방 정보 가져오기
     useEffect(() => {
         const fetchRoomData = async () => {
             try {
                 const res = await fetch(`http://localhost:8080/api/rooms/${roomId}`);
-                if (!res.ok) throw new Error("방 정보를 찾을 수 없거나 서버 에러입니다.");
+                if (!res.ok) throw new Error(t('toastRoomInfoError'));
                 const roomData = await res.json();
 
                 const apiKey = process.env.NEXT_PUBLIC_TMDB_API_KEY;
                 if (roomData.movieId && !roomData.movieId.startsWith("m_")) {
+                    // 🌟 언어 변수(tmdbLang) 동적 적용
                     const tmdbRes = await fetch(
-                        `https://api.themoviedb.org/3/movie/${roomData.movieId}?language=ko-KR&append_to_response=credits&api_key=${apiKey}`
+                        `https://api.themoviedb.org/3/movie/${roomData.movieId}?language=${tmdbLang}&append_to_response=credits&api_key=${apiKey}`
                     );
                     if (tmdbRes.ok) {
                         const tmdbData = await tmdbRes.json();
@@ -67,10 +70,10 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                         roomData.genres = tmdbData.genres?.map((g: any) => g.name);
 
                         const director = tmdbData.credits?.crew?.find((c: any) => c.job === 'Director');
-                        roomData.director = director ? director.name : '정보 없음';
+                        roomData.director = director ? director.name : t('noInfo'); // 번역 적용
 
                         const cast = tmdbData.credits?.cast?.slice(0, 3).map((c: any) => c.name);
-                        roomData.cast = cast?.length > 0 ? cast.join(', ') : '정보 없음';
+                        roomData.cast = cast?.length > 0 ? cast.join(', ') : t('noInfo'); // 번역 적용
                     }
                 }
                 setRoom(roomData);
@@ -78,13 +81,12 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
             } catch (err: any) {
                 setError(err.message);
                 setIsLoading(false);
-                toast.error("방 정보를 불러오는데 실패했습니다.");
+                toast.error(t('toastRoomLoadFail'));
             }
         };
         fetchRoomData();
-    }, [roomId]);
+    }, [roomId, tmdbLang, t]); // 🌟 언어가 바뀌면 영화 정보를 다시 불러옵니다!
 
-    // 🌟 초기 채팅 가져오기
     useEffect(() => {
         if (!roomId) return;
         const fetchInitialChat = async () => {
@@ -131,16 +133,14 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         }
     };
 
-    // 🌟 핵심 해결 포인트: 웹소켓 연결 (유령 퇴장 방지)
     useEffect(() => {
-        // 방 정보 로딩 중(isLoading)이거나 에러가 있으면 연결을 시도하지 않음!
         if (!roomId || isLoading || error) return;
 
         const stompClient = new Client({
             brokerURL: "ws://localhost:8080/ws-chat",
             reconnectDelay: 5000,
             onConnect: () => {
-                setIsConnected(true); // 연결 성공 UI 업데이트
+                setIsConnected(true);
 
                 stompClient.subscribe(`/sub/chat/room/${roomId}`, (message) => {
                     const receivedMsg = JSON.parse(message.body);
@@ -189,7 +189,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                 }
             },
             onWebSocketClose: () => {
-                setIsConnected(false); // 연결 끊김 UI 업데이트
+                setIsConnected(false);
             }
         });
 
@@ -208,7 +208,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
             stompClient.deactivate();
             setIsConnected(false);
         };
-        // 🌟 의존성(Dependencies)에서 room?.status를 빼고 isLoading을 넣어 한 번만 실행되게 고정!
     }, [roomId, session, isLoading, error]);
 
     const handleScroll = () => {
@@ -259,7 +258,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         if (!inputMessage.trim() || !client || !client.connected || !session || room?.status === 'CLOSED') return;
         client.publish({
             destination: "/pub/chat/message",
-            body: JSON.stringify({ roomId: Number(roomId), sender: session.user?.name || "익명 유저", content: inputMessage.trim(), time: new Date().toISOString(), type: "TALK" }),
+            body: JSON.stringify({ roomId: Number(roomId), sender: session.user?.name || t('anonymous'), content: inputMessage.trim(), time: new Date().toISOString(), type: "TALK" }),
         });
         setInputMessage("");
         setIsAutoScroll(true);
@@ -270,13 +269,13 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
     const handleCopyLink = () => {
         navigator.clipboard.writeText(window.location.href).then(() => {
             setIsCopied(true);
-            toast.success("🔗 링크가 클립보드에 복사되었습니다!");
+            toast.success(t('toastCopied'));
             setTimeout(() => setIsCopied(false), 2000);
         });
     };
 
     const handleExportChat = () => {
-        if (messages.length === 0) { toast.warning("저장할 대화 내역이 없습니다."); return; }
+        if (messages.length === 0) { toast.warning(t('toastNoChatToSave')); return; }
         const chatText = messages.map(msg => {
             if (msg.type === "ENTER" || msg.type === "LEAVE") return `--- ${msg.content} ---`;
             let displayTime = msg.time;
@@ -291,7 +290,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         link.download = `CineSation_방${roomId}_과몰입기록.txt`;
         link.click();
         URL.revokeObjectURL(url);
-        toast.success("💾 대화 기록이 저장되었습니다!");
+        toast.success(t('toastChatSaved'));
     };
 
     const scrollToBottom = () => {
@@ -302,19 +301,16 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
 
     return (
         <div className="max-w-6xl mx-auto py-8 animate-in fade-in duration-500 relative px-4">
-
             <RoomActionHeader
                 onExportChat={handleExportChat}
                 onCopyLink={handleCopyLink}
                 isCopied={isCopied}
             />
-
             <RoomMovieBanner
                 room={room}
                 isLoading={isLoading}
                 error={error}
             />
-
             {!isLoading && !error && (
                 <ChatSection
                     room={room}

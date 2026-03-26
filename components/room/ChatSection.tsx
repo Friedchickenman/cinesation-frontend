@@ -1,4 +1,7 @@
+"use client";
+
 import { Button } from "@/components/ui/button";
+import { useTranslations } from "next-intl"; // 🌟 번역 훅
 
 interface ChatSectionProps {
     room: any;
@@ -24,15 +27,18 @@ export default function ChatSection({
                                         typingUsers, chatContainerRef, messagesEndRef, textareaRef,
                                         onScroll, onTyping, onKeyDown, onSendMessage, onScrollToBottom
                                     }: ChatSectionProps) {
+
+    const t = useTranslations("RoomDetail"); // 🌟 번역기
+
     return (
         <div className="flex flex-col h-[650px] bg-[#09090B] border border-zinc-800 rounded-[2rem] shadow-2xl overflow-hidden relative">
             <div className="bg-zinc-900/80 backdrop-blur-md border-b border-zinc-800 px-6 py-4 flex items-center justify-between shrink-0 z-20">
                 <h3 className="font-bold text-white flex items-center gap-2 text-sm tracking-wide">
-                    <span className="opacity-80">💬</span> 실시간 과몰입 라운지
+                    <span className="opacity-80">💬</span> {t('liveLounge')}
                 </h3>
                 <span className={`text-[10px] font-black tracking-widest uppercase px-3 py-1.5 rounded-full flex items-center gap-2 border ${client?.connected ? 'bg-[#00E676]/10 text-[#00E676] border-[#00E676]/30' : 'bg-red-900/20 text-red-500 border-red-900/30'}`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${client?.connected ? 'bg-[#00E676] animate-pulse' : 'bg-red-500'}`}></span>
-                    {client?.connected ? "Connected" : "Reconnecting"}
+                    {client?.connected ? t('connected') : t('reconnecting')}
                 </span>
             </div>
 
@@ -46,7 +52,7 @@ export default function ChatSection({
                 {messages.length === 0 && !isLoadingMore ? (
                     <div className="flex-1 flex flex-col items-center justify-center text-zinc-600 text-sm gap-4">
                         <span className="text-4xl opacity-30">🍿</span>
-                        아직 대화가 없습니다. 첫 번째 과몰입 멘트를 날려보세요!
+                        {t('noMessages')}
                     </div>
                 ) : (
                     messages.map((msg, idx) => {
@@ -73,7 +79,6 @@ export default function ChatSection({
                         const isMe = session?.user?.name === msg.sender;
 
                         return (
-                            // 🌟 핵심: 이 div 태그에 animate-in fade-in slide-in-from-bottom-3 클래스 추가
                             <div key={idx} className="flex flex-col animate-in fade-in slide-in-from-bottom-3 duration-300 ease-out">
                                 {isNewDay && (
                                     <div className="flex justify-center my-4 mb-6">
@@ -83,10 +88,11 @@ export default function ChatSection({
                                     </div>
                                 )}
 
+                                {/* 🌟 핵심 수정 포인트: 입장/퇴장 메시지를 가로채서 번역된 문구로 출력합니다 */}
                                 {msg.type === "ENTER" || msg.type === "LEAVE" ? (
                                     <div className="flex justify-center my-2">
                                         <span className="bg-zinc-900 border border-zinc-800 text-zinc-400 text-[11px] font-medium px-5 py-1.5 rounded-full shadow-sm animate-in fade-in zoom-in duration-300">
-                                            {msg.content}
+                                            {msg.type === "ENTER" ? `${msg.sender}${t('msgEnter')}` : `${msg.sender}${t('msgLeave')}`}
                                         </span>
                                     </div>
                                 ) : (
@@ -119,7 +125,7 @@ export default function ChatSection({
                         <div className="w-9 h-9 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-base shrink-0 shadow-sm">✍️</div>
                         <div className="flex flex-col items-start">
                             <span className="text-[10px] font-bold text-zinc-500 mb-1 ml-1">
-                                {Array.from(typingUsers).join(", ")} is typing...
+                                {Array.from(typingUsers).join(", ")} {t('isTyping')}
                             </span>
                             <div className="py-3 px-4 bg-zinc-900 border border-zinc-800 rounded-[1.25rem] rounded-tl-sm shadow-sm flex items-center gap-1 w-fit">
                                 <span className="w-1.5 h-1.5 bg-zinc-500 rounded-full animate-bounce" style={{ animationDelay: "0ms" }}></span>
@@ -135,7 +141,7 @@ export default function ChatSection({
             {showNewMessageBtn && (
                 <div className="absolute bottom-24 left-0 w-full flex justify-center z-30 animate-in slide-in-from-bottom-2 fade-in duration-200">
                     <Button onClick={onScrollToBottom} className="bg-white/90 hover:bg-white backdrop-blur-md text-black px-6 rounded-full shadow-lg font-bold flex items-center gap-2 text-xs">
-                        <span>👇</span> 새 메시지
+                        <span>👇</span> {t('newMessage')}
                     </Button>
                 </div>
             )}
@@ -147,7 +153,7 @@ export default function ChatSection({
                         value={inputMessage}
                         onChange={onTyping}
                         onKeyDown={onKeyDown}
-                        placeholder={room?.status === 'CLOSED' ? "🔒 7일이 지나 종료된 라운지입니다. (읽기 전용)" : session ? "메시지 입력... (Shift+Enter로 줄바꿈)" : "로그인 후 참여 가능합니다."}
+                        placeholder={room?.status === 'CLOSED' ? t('placeholderClosed') : session ? t('placeholderInput') : t('placeholderLogin')}
                         disabled={!session || !client?.connected || room?.status === 'CLOSED'}
                         rows={1}
                         style={{ height: "52px", minHeight: "52px" }}
@@ -158,7 +164,7 @@ export default function ChatSection({
                         disabled={!session || !client?.connected || !inputMessage.trim() || room?.status === 'CLOSED'}
                         className="h-[52px] px-8 bg-white hover:bg-zinc-200 text-black font-extrabold rounded-2xl disabled:opacity-50 shrink-0 transition-transform active:scale-95"
                     >
-                        SEND
+                        {t('sendBtn')}
                     </Button>
                 </div>
             </div>

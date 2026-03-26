@@ -45,5 +45,38 @@
     "desc2": "to create a lounge.",
     "googleBtn": "Continue with Google",
     "closeBtn": "Close"
+  },
+  "RoomDetail": {
+    "backToMain": "← Back to Main",
+    "saveChat": "Save Chat",
+    "copied": "Copied!",
+    "share": "Share",
+    "errorTitle": "Oops, something went wrong!",
+    "noInfo": "No Info",
+    "director": "Director",
+    "cast": "Cast",
+    "hostTopic": "Host Topic / ",
+    "liveLounge": "Live Immersive Lounge",
+    "connected": "Connected",
+    "reconnecting": "Reconnecting",
+    "noMessages": "No messages yet. Drop the first immersive comment!",
+    "isTyping": "is typing...",
+    "newMessage": "New message",
+    "placeholderClosed": "🔒 Lounge closed after 7 days. (Read-only)",
+    "placeholderInput": "Type a message... (Shift+Enter for new line)",
+    "placeholderLogin": "Login required to participate.",
+    "sendBtn": "SEND",
+    "toastRoomInfoError": "Room info not found or server error.",
+    "toastRoomLoadFail": "Failed to load room info.",
+    "toastNoChatToSave": "No chat history to save.",
+    "toastChatSaved": "💾 Chat history saved!",
+    "toastCopied": "🔗 Link copied to clipboard!",
+    "anonymous": "Anonymous User",
+    "msgEnter": " has entered the immersive lounge! 🍿",
+    "msgLeave": " has left the lounge. 👋"
+  },
+  "Auth": {
+    "login": "Login",
+    "logout": "Logout"
   }
 }

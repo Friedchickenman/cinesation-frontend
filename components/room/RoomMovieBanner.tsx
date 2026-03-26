@@ -1,4 +1,7 @@
+"use client";
+
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTranslations } from "next-intl"; // 🌟 번역 훅
 
 interface RoomMovieBannerProps {
     room: any;
@@ -7,6 +10,8 @@ interface RoomMovieBannerProps {
 }
 
 export default function RoomMovieBanner({ room, isLoading, error }: RoomMovieBannerProps) {
+    const t = useTranslations("RoomDetail"); // 🌟 번역기
+
     if (isLoading) {
         return (
             <div className="relative bg-zinc-900 rounded-[2rem] border border-zinc-800 overflow-hidden shadow-sm mb-8 h-[400px] flex items-center p-8 md:p-12">
@@ -19,7 +24,7 @@ export default function RoomMovieBanner({ room, isLoading, error }: RoomMovieBan
         return (
             <div className="bg-red-950/30 border border-red-900/50 rounded-[2rem] p-8 text-red-400 shadow-sm mb-8 flex flex-col items-center justify-center text-center h-[200px]">
                 <span className="text-4xl mb-4">🚨</span>
-                <h2 className="text-xl font-bold mb-2 text-white">앗, 문제가 발생했어요!</h2>
+                <h2 className="text-xl font-bold mb-2 text-white">{t('errorTitle')}</h2>
                 <p className="text-sm">{error}</p>
             </div>
         );
@@ -64,16 +69,16 @@ export default function RoomMovieBanner({ room, isLoading, error }: RoomMovieBan
                     </h1>
 
                     <p className="text-zinc-400 text-sm drop-shadow-sm mb-8 flex flex-col md:flex-row gap-2 md:gap-5 justify-center md:justify-start">
-                        <span><span className="text-zinc-500 mr-2">Director</span> <span className="font-bold text-zinc-200">{room?.director}</span></span>
+                        <span><span className="text-zinc-500 mr-2">{t('director')}</span> <span className="font-bold text-zinc-200">{room?.director}</span></span>
                         <span className="hidden md:inline text-zinc-700">|</span>
-                        <span><span className="text-zinc-500 mr-2">Cast</span> <span className="font-bold text-zinc-200">{room?.cast}</span></span>
+                        <span><span className="text-zinc-500 mr-2">{t('cast')}</span> <span className="font-bold text-zinc-200">{room?.cast}</span></span>
                     </p>
 
                     <div className="inline-flex flex-col items-start p-5 bg-zinc-900/80 backdrop-blur-md rounded-2xl border border-zinc-800 shadow-xl w-full max-w-2xl relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-1.5 h-full bg-white/20"></div>
                         <div className="flex items-center gap-2 mb-2">
                             <span className="text-white text-sm">👑</span>
-                            <span className="text-zinc-400 text-[10px] font-black tracking-widest uppercase">Host Topic / {room?.creatorName}</span>
+                            <span className="text-zinc-400 text-[10px] font-black tracking-widest uppercase">{t('hostTopic')}{room?.creatorName}</span>
                         </div>
                         <p className="text-zinc-100 text-lg md:text-xl font-bold leading-relaxed break-keep">
                             "{room?.title}"

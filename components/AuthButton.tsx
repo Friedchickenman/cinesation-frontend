@@ -1,10 +1,12 @@
-"use client"; // 🌟 이 한 줄이 추가되었습니다!
+"use client";
 
 import { useSession, signIn, signOut } from "next-auth/react";
 import { Button } from "./ui/button";
+import { useTranslations } from "next-intl"; // 🌟 번역 훅 추가
 
 export default function AuthButton() {
     const { data: session } = useSession();
+    const t = useTranslations("Auth"); // 🌟 번역기 장착
 
     if (session) {
         return (
@@ -16,18 +18,18 @@ export default function AuthButton() {
                         {session.user?.name?.substring(0, 1) || "?"}
                     </div>
                 )}
-                {/* 🌟 로그아웃 버튼: 헤더에 맞춰 monochrome 다크 */}
+                {/* 🌟 다국어 적용된 로그아웃 버튼 */}
                 <Button onClick={() => signOut()} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-100 font-bold rounded-lg px-4 h-9 text-xs border border-zinc-700 shadow-inner transition-colors">
-                    로그아웃
+                    {t('logout')}
                 </Button>
             </div>
         );
     }
 
     return (
-        // 🌟 로그인 버튼: 애플 바이브 + Vercel 블랙
+        // 🌟 다국어 적용된 로그인 버튼
         <Button onClick={() => signIn("google")} className="bg-white hover:bg-zinc-200 text-black font-bold rounded-lg px-5 h-9 text-xs border border-zinc-200 shadow-[0_2px_10px_rgb(255,255,255,0.1)] transition-all">
-            로그인
+            {t('login')}
         </Button>
     );
 }
