@@ -1,38 +1,7 @@
 "use client";
 
-import { useState } from "react"; // 🌟 스포일러 상태 관리를 위해 추가
 import { Button } from "@/components/ui/button";
 import { useTranslations, useLocale } from "next-intl";
-
-// 🌟 1. 스포일러 텍스트를 가려주는 미니 컴포넌트 추가!
-const SpoilerText = ({ text, isMe }: { text: string, isMe: boolean }) => {
-    const [isRevealed, setIsRevealed] = useState(false);
-    return (
-        <span
-            onClick={() => setIsRevealed(true)}
-            title={isRevealed ? "" : "클릭해서 스포일러 보기"}
-            className={`cursor-pointer rounded px-1.5 py-0.5 mx-0.5 transition-all duration-300 inline-block ${
-                isRevealed
-                    ? (isMe ? "bg-zinc-200 text-black" : "bg-zinc-800 text-zinc-200")
-                    : (isMe ? "bg-zinc-400 text-transparent select-none hover:bg-zinc-300" : "bg-zinc-700 text-transparent select-none hover:bg-zinc-600")
-            }`}
-        >
-            {text}
-        </span>
-    );
-};
-
-// 🌟 2. 메시지 안에서 ||스포일러|| 문법을 찾아내는 변환 함수
-const renderMessageContent = (content: string, isMe: boolean) => {
-    const parts = content.split(/(\|\|.*?\|\|)/g);
-
-    return parts.map((part, i) => {
-        if (part.startsWith('||') && part.endsWith('||') && part.length > 4) {
-            return <SpoilerText key={i} text={part.slice(2, -2)} isMe={isMe} />;
-        }
-        return <span key={i}>{part}</span>;
-    });
-};
 
 interface ChatSectionProps {
     room: any;
@@ -62,6 +31,7 @@ export default function ChatSection({
     const t = useTranslations("RoomDetail");
     const locale = useLocale();
 
+    // 🌟 날짜/시간 포맷팅을 위한 언어 코드 결정
     const timeFormatLang = locale === 'en' ? 'en-US' : 'ko-KR';
 
     return (
@@ -138,8 +108,7 @@ export default function ChatSection({
                                                 {msg.sender}
                                             </span>
                                             <div className={`py-2.5 px-4 shadow-sm inline-block leading-relaxed whitespace-pre-wrap text-sm break-words ${isMe ? 'bg-white text-black rounded-[1.25rem] rounded-tr-sm font-medium' : 'bg-zinc-900 border border-zinc-800 text-zinc-200 rounded-[1.25rem] rounded-tl-sm'}`}>
-                                                {/* 🌟 3. 여기서 변환 함수를 통해 스포일러 처리된 내용을 렌더링합니다! */}
-                                                {renderMessageContent(msg.content, isMe)}
+                                                {msg.content}
                                             </div>
                                             {displayTime && (
                                                 <span className={`text-[9px] text-zinc-600 mt-1 block font-medium ${isMe ? 'mr-1 text-right' : 'ml-1'}`}>

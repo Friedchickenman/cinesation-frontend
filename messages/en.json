@@ -63,7 +63,7 @@
     "isTyping": "is typing...",
     "newMessage": "New message",
     "placeholderClosed": "🔒 Lounge closed after 7 days. (Read-only)",
-    "placeholderInput": "Type a message... (||Spoiler||, Shift+Enter for new line)",
+    "placeholderInput": "Type a message... (Shift+Enter for new line)",
     "placeholderLogin": "Login required to participate.",
     "sendBtn": "SEND",
     "toastRoomInfoError": "Room info not found or server error.",
