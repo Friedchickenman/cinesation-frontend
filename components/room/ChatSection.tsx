@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useTranslations, useLocale } from "next-intl";
 
@@ -30,9 +31,40 @@ export default function ChatSection({
 
     const t = useTranslations("RoomDetail");
     const locale = useLocale();
-
-    // 🌟 날짜/시간 포맷팅을 위한 언어 코드 결정
     const timeFormatLang = locale === 'en' ? 'en-US' : 'ko-KR';
+
+    const [localPinnedMessage, setLocalPinnedMessage] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (room?.pinnedMessage) {
+            setLocalPinnedMessage(room.pinnedMessage);
+        }
+    }, [room?.pinnedMessage]);
+
+    // 🌟 누구나 핀(📌) 버튼을 누를 수 있습니다!
+    const handlePinMessage = async (content: string) => {
+        const confirmMsg = locale === 'en'
+            ? (content ? "Pin this message to the top?" : "Unpin the current message?")
+            : (content ? "이 메시지를 공지로 등록하시겠습니까?" : "공지를 내리시겠습니까?");
+
+        if (!confirm(confirmMsg)) return;
+
+        try {
+            const res = await fetch(`http://localhost:8080/api/rooms/${room.id}/pin`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: content, username: session?.user?.name })
+            });
+
+            if (res.ok) {
+                setLocalPinnedMessage(content || null);
+            } else {
+                alert(locale === 'en' ? "Failed to pin message." : "공지 등록에 실패했습니다.");
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    };
 
     return (
         <div className="flex flex-col h-[650px] bg-[#09090B] border border-zinc-800 rounded-[2rem] shadow-2xl overflow-hidden relative">
@@ -45,6 +77,28 @@ export default function ChatSection({
                     {client?.connected ? t('connected') : t('reconnecting')}
                 </span>
             </div>
+
+            {/* 고정 메시지(Pinned Message) 배너 UI */}
+            {localPinnedMessage && (
+                <div className="bg-zinc-800/95 backdrop-blur-md border-b border-zinc-700 px-6 py-3.5 flex items-start gap-3 shrink-0 z-10 shadow-lg animate-in slide-in-from-top-2">
+                    <span className="text-lg animate-bounce">📌</span>
+                    <div className="flex flex-col w-full">
+                        <div className="flex items-center justify-between mb-1">
+                            {/* 🌟 텍스트 변경: 누구나 올릴 수 있으므로 '라운지 공지사항'으로 변경 */}
+                            <span className="text-[10px] font-black text-[#00E676] uppercase tracking-widest">
+                                {locale === 'en' ? "Pinned Message" : "라운지 공지사항"}
+                            </span>
+                            {/* 🌟 누구나 공지를 내릴 수 있도록 조건문 삭제 */}
+                            <button onClick={() => handlePinMessage("")} className="text-[10px] font-bold text-zinc-500 hover:text-red-400 transition-colors underline underline-offset-2">
+                                {locale === 'en' ? "Unpin" : "내리기"}
+                            </button>
+                        </div>
+                        <span className="text-sm text-zinc-100 font-medium break-words leading-relaxed line-clamp-2">
+                            {localPinnedMessage}
+                        </span>
+                    </div>
+                </div>
+            )}
 
             <div ref={chatContainerRef} onScroll={onScroll} className="flex-1 p-6 overflow-y-auto flex flex-col gap-6 relative scroll-smooth bg-transparent">
                 {isLoadingMore && (
@@ -99,14 +153,26 @@ export default function ChatSection({
                                         </span>
                                     </div>
                                 ) : (
-                                    <div className={`flex gap-3 w-full ${isMe ? 'flex-row-reverse' : ''}`}>
+                                    <div className={`group flex gap-3 w-full ${isMe ? 'flex-row-reverse' : ''}`}>
                                         <div className={`w-9 h-9 rounded-full flex items-center justify-center text-base shrink-0 border shadow-sm ${isMe ? 'bg-zinc-800 border-zinc-700' : 'bg-zinc-900 border-zinc-800'}`}>
                                             {isMe ? "😎" : "🍿"}
                                         </div>
                                         <div className={`flex flex-col max-w-[75%] ${isMe ? 'items-end' : 'items-start'}`}>
-                                            <span className={`text-[11px] font-bold text-zinc-500 mb-1.5 block ${isMe ? 'mr-1' : 'ml-1'}`}>
-                                                {msg.sender}
-                                            </span>
+
+                                            <div className={`flex items-center gap-2 mb-1.5 ${isMe ? 'flex-row-reverse mr-1' : 'ml-1'}`}>
+                                                <span className="text-[11px] font-bold text-zinc-500">
+                                                    {msg.sender}
+                                                </span>
+                                                {/* 🌟 누구나 마우스 호버 시 📌 버튼을 볼 수 있도록 isHost 조건문 삭제! */}
+                                                <button
+                                                    onClick={() => handlePinMessage(msg.content)}
+                                                    className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] bg-zinc-800 hover:bg-zinc-700 px-1.5 py-0.5 rounded text-zinc-300 shadow-sm"
+                                                    title={locale === 'en' ? "Pin message" : "이 메시지 공지로 등록"}
+                                                >
+                                                    📌
+                                                </button>
+                                            </div>
+
                                             <div className={`py-2.5 px-4 shadow-sm inline-block leading-relaxed whitespace-pre-wrap text-sm break-words ${isMe ? 'bg-white text-black rounded-[1.25rem] rounded-tr-sm font-medium' : 'bg-zinc-900 border border-zinc-800 text-zinc-200 rounded-[1.25rem] rounded-tl-sm'}`}>
                                                 {msg.content}
                                             </div>
