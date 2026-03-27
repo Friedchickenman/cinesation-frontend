@@ -22,7 +22,6 @@ interface ChatSectionProps {
     onSendMessage: () => void;
     onScrollToBottom: () => void;
 
-    // 🌟 1. page.tsx에서 넘겨준 답장 관련 Props 추가! (타입 에러 해결)
     replyingTo: any | null;
     onReply: (msg: any) => void;
     onCancelReply: () => void;
@@ -32,7 +31,7 @@ export default function ChatSection({
                                         room, session, client, messages, inputMessage, isLoadingMore, showNewMessageBtn,
                                         typingUsers, chatContainerRef, messagesEndRef, textareaRef,
                                         onScroll, onTyping, onKeyDown, onSendMessage, onScrollToBottom,
-                                        replyingTo, onReply, onCancelReply // 🌟 Props 받아오기
+                                        replyingTo, onReply, onCancelReply
                                     }: ChatSectionProps) {
 
     const t = useTranslations("RoomDetail");
@@ -40,6 +39,9 @@ export default function ChatSection({
     const timeFormatLang = locale === 'en' ? 'en-US' : 'ko-KR';
 
     const [localPinnedMessage, setLocalPinnedMessage] = useState<string | null>(null);
+
+    // 🌟 1. 차단(가리기)한 유저 목록을 저장하는 State 추가
+    const [mutedUsers, setMutedUsers] = useState<Set<string>>(new Set());
 
     useEffect(() => {
         if (room?.pinnedMessage) {
@@ -70,6 +72,9 @@ export default function ChatSection({
             console.error(error);
         }
     };
+
+    // 🌟 차단된 유저를 제외한 '타이핑 중' 유저 목록
+    const visibleTypingUsers = Array.from(typingUsers).filter(user => !mutedUsers.has(user));
 
     return (
         <div className="flex flex-col h-[650px] bg-[#09090B] border border-zinc-800 rounded-[2rem] shadow-2xl overflow-hidden relative">
@@ -138,7 +143,28 @@ export default function ChatSection({
 
                         const isMe = session?.user?.name === msg.sender;
 
-                        // 🌟 2. 부모 메시지 정보 찾기 (이 메시지가 답장인 경우)
+                        // 🌟 2. 차단된 유저인지 확인
+                        if (mutedUsers.has(msg.sender)) {
+                            return (
+                                <div key={idx} className="flex justify-center my-1 animate-in fade-in duration-300">
+                                    <button
+                                        onClick={() => {
+                                            if (confirm(locale === 'en' ? `Unblock ${msg.sender}?` : `${msg.sender} 님을 차단 해제하시겠습니까?`)) {
+                                                setMutedUsers(prev => {
+                                                    const newSet = new Set(prev);
+                                                    newSet.delete(msg.sender);
+                                                    return newSet;
+                                                });
+                                            }
+                                        }}
+                                        className="bg-zinc-900 border border-zinc-800/50 text-zinc-600 text-[10px] font-medium px-4 py-1.5 rounded-full shadow-sm hover:text-zinc-400 hover:border-zinc-700 transition-all"
+                                    >
+                                        🚫 {locale === 'en' ? `Hidden message from ${msg.sender} (Click to unblock)` : `${msg.sender}님의 메시지가 가려졌습니다. (클릭하여 해제)`}
+                                    </button>
+                                </div>
+                            );
+                        }
+
                         const parentMsg = msg.parentMessageId
                             ? messages.find(m => m.id === msg.parentMessageId)
                             : null;
@@ -171,7 +197,6 @@ export default function ChatSection({
                                                     {msg.sender}
                                                 </span>
                                                 <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                                                    {/* 🌟 3. 답장(↩️) 버튼 추가 */}
                                                     <button
                                                         onClick={() => onReply(msg)}
                                                         className="text-[10px] bg-zinc-800 hover:bg-zinc-700 px-1.5 py-0.5 rounded text-zinc-300 shadow-sm"
@@ -186,12 +211,30 @@ export default function ChatSection({
                                                     >
                                                         📌
                                                     </button>
+
+                                                    {/* 🌟 3. 남의 메시지일 경우에만 🚫 (차단) 버튼 표시 */}
+                                                    {!isMe && (
+                                                        <button
+                                                            onClick={() => {
+                                                                if (confirm(locale === 'en' ? `Hide messages from ${msg.sender}?` : `${msg.sender} 님의 메시지를 숨기시겠습니까?`)) {
+                                                                    setMutedUsers(prev => {
+                                                                        const newSet = new Set(prev);
+                                                                        newSet.add(msg.sender);
+                                                                        return newSet;
+                                                                    });
+                                                                }
+                                                            }}
+                                                            className="text-[10px] bg-zinc-800 hover:bg-red-900/80 hover:text-red-400 px-1.5 py-0.5 rounded text-zinc-300 shadow-sm transition-colors"
+                                                            title={locale === 'en' ? "Hide user" : "이 유저 가리기"}
+                                                        >
+                                                            🚫
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
 
                                             <div className={`py-2.5 px-4 shadow-sm inline-block leading-relaxed whitespace-pre-wrap text-sm break-words flex flex-col ${isMe ? 'bg-white text-black rounded-[1.25rem] rounded-tr-sm font-medium' : 'bg-zinc-900 border border-zinc-800 text-zinc-200 rounded-[1.25rem] rounded-tl-sm'}`}>
 
-                                                {/* 🌟 4. 답장일 경우 인용구(Quote) 말풍선 렌더링 */}
                                                 {msg.parentMessageId && (
                                                     <div className={`mb-2 px-3 py-1.5 rounded-lg text-xs border-l-2 ${isMe ? 'bg-zinc-200/60 border-zinc-400 text-zinc-700' : 'bg-zinc-800/80 border-zinc-500 text-zinc-400'} line-clamp-2`}>
                                                         <span className="font-bold mr-1.5">
@@ -203,7 +246,6 @@ export default function ChatSection({
                                                     </div>
                                                 )}
 
-                                                {/* 실제 메시지 내용 */}
                                                 <span>{msg.content}</span>
                                             </div>
 
@@ -220,12 +262,13 @@ export default function ChatSection({
                     })
                 )}
 
-                {typingUsers.size > 0 && (
+                {/* 🌟 4. 차단된 유저를 제외한 visibleTypingUsers 배열 사용 */}
+                {visibleTypingUsers.length > 0 && (
                     <div className="flex gap-3 mb-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
                         <div className="w-9 h-9 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-base shrink-0 shadow-sm">✍️</div>
                         <div className="flex flex-col items-start">
                             <span className="text-[10px] font-bold text-zinc-500 mb-1 ml-1">
-                                {Array.from(typingUsers).join(", ")} {t('isTyping')}
+                                {visibleTypingUsers.join(", ")} {t('isTyping')}
                             </span>
                             <div className="py-3 px-4 bg-zinc-900 border border-zinc-800 rounded-[1.25rem] rounded-tl-sm shadow-sm flex items-center gap-1 w-fit">
                                 <span className="w-1.5 h-1.5 bg-zinc-500 rounded-full animate-bounce" style={{ animationDelay: "0ms" }}></span>
@@ -248,7 +291,6 @@ export default function ChatSection({
 
             <div className="relative p-4 bg-zinc-900/80 backdrop-blur-xl border-t border-zinc-800 shrink-0 z-20 flex flex-col">
 
-                {/* 🌟 5. 입력창 상단에 뜨는 "답장 중..." 프리뷰 바 */}
                 {replyingTo && (
                     <div className="flex items-center justify-between bg-zinc-800/90 px-4 py-2.5 rounded-t-2xl border-t border-x border-zinc-700 text-xs w-full max-w-full truncate mb-2 animate-in slide-in-from-bottom-2">
                         <div className="flex items-center gap-2 truncate text-zinc-300">
