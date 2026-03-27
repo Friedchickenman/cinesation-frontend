@@ -167,10 +167,14 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                         return;
                     }
 
-                    // 🌟 1. "LIKE" 이벤트 수신 처리
+                    // 🌟 1. "LIKE" 이벤트 수신 처리 (likedUsers 명단도 갱신!)
                     if (receivedMsg.type === "LIKE") {
                         setMessages(prev => prev.map(msg =>
-                            msg.id === receivedMsg.id ? { ...msg, likeCount: receivedMsg.likeCount } : msg
+                            msg.id === receivedMsg.id ? {
+                                ...msg,
+                                likeCount: receivedMsg.likeCount,
+                                likedUsers: receivedMsg.likedUsers // 👈 이 부분이 추가되었습니다!
+                            } : msg
                         ));
                         return;
                     }
@@ -285,7 +289,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         if (textareaRef.current) textareaRef.current.style.height = "52px";
     };
 
-    // 🌟 2. 좋아요(Like) 웹소켓 발송 함수
     const handleLikeMessage = (msgId: number) => {
         if (!client || !client.connected || !session || room?.status === 'CLOSED') return;
         client.publish({
@@ -367,7 +370,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                     replyingTo={replyingTo}
                     onReply={setReplyingTo}
                     onCancelReply={() => setReplyingTo(null)}
-                    // 🌟 3. ChatSection에 onLike 전달!
                     onLike={handleLikeMessage}
                 />
             )}

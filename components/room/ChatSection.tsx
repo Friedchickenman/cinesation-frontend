@@ -26,7 +26,6 @@ interface ChatSectionProps {
     onReply: (msg: any) => void;
     onCancelReply: () => void;
 
-    // 🌟 1. onLike Props 추가
     onLike: (msgId: number) => void;
 }
 
@@ -34,7 +33,7 @@ export default function ChatSection({
                                         room, session, client, messages, inputMessage, isLoadingMore, showNewMessageBtn,
                                         typingUsers, chatContainerRef, messagesEndRef, textareaRef,
                                         onScroll, onTyping, onKeyDown, onSendMessage, onScrollToBottom,
-                                        replyingTo, onReply, onCancelReply, onLike // 🌟 가져오기
+                                        replyingTo, onReply, onCancelReply, onLike
                                     }: ChatSectionProps) {
 
     const t = useTranslations("RoomDetail");
@@ -143,6 +142,9 @@ export default function ChatSection({
 
                         const isMe = session?.user?.name === msg.sender;
 
+                        // 🌟 1. 내가 좋아요를 누른 메시지인지 확인!
+                        const hasLiked = msg.likedUsers?.includes(`[${session?.user?.name}]`);
+
                         if (mutedUsers.has(msg.sender)) {
                             return (
                                 <div key={idx} className="flex justify-center my-1 animate-in fade-in duration-300">
@@ -197,14 +199,14 @@ export default function ChatSection({
                                                 </span>
                                                 <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
 
-                                                    {/* 🌟 2. 좋아요(👍) 버튼 추가 */}
+                                                    {/* 🌟 2. 좋아요 버튼: 눌렀으면 빨간 하트, 아니면 회색 따봉! */}
                                                     {msg.id && (
                                                         <button
                                                             onClick={() => onLike(msg.id)}
-                                                            className="text-[10px] bg-zinc-800 hover:bg-zinc-700 px-1.5 py-0.5 rounded text-zinc-300 shadow-sm"
-                                                            title={locale === 'en' ? "Like" : "공감하기"}
+                                                            className={`text-[10px] px-1.5 py-0.5 rounded shadow-sm transition-colors ${hasLiked ? 'bg-red-900/30 text-red-400 hover:bg-red-900/50' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'}`}
+                                                            title={locale === 'en' ? (hasLiked ? "Unlike" : "Like") : (hasLiked ? "공감 취소" : "공감하기")}
                                                         >
-                                                            👍
+                                                            {hasLiked ? '❤️' : '👍'}
                                                         </button>
                                                     )}
 
@@ -242,7 +244,6 @@ export default function ChatSection({
                                                 </div>
                                             </div>
 
-                                            {/* 🌟 3. 말풍선 및 하단 좋아요 배지 영역 */}
                                             <div className="relative">
                                                 <div className={`py-2.5 px-4 shadow-sm inline-block leading-relaxed whitespace-pre-wrap text-sm break-words flex flex-col ${isMe ? 'bg-white text-black rounded-[1.25rem] rounded-tr-sm font-medium' : 'bg-zinc-900 border border-zinc-800 text-zinc-200 rounded-[1.25rem] rounded-tl-sm'}`}>
                                                     {msg.parentMessageId && (
@@ -258,7 +259,6 @@ export default function ChatSection({
                                                     <span>{msg.content}</span>
                                                 </div>
 
-                                                {/* 🌟 4. 좋아요가 1개 이상일 때 나타나는 예쁜 배지 UI */}
                                                 {(msg.likeCount || 0) > 0 && (
                                                     <div className={`absolute -bottom-3 ${isMe ? 'left-2' : 'right-2'} bg-zinc-800 border border-zinc-700 rounded-full px-2 py-0.5 shadow-md flex items-center gap-1 animate-in zoom-in duration-200 z-10`}>
                                                         <span className="text-[10px]">❤️</span>
