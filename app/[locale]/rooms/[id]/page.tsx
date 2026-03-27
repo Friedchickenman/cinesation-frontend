@@ -8,7 +8,7 @@ import { useLocale, useTranslations } from "next-intl";
 
 import RoomActionHeader from "@/components/room/RoomActionHeader";
 import RoomMovieBanner from "@/components/room/RoomMovieBanner";
-import ChatSection from "@/components/room/ChatSection";
+import ChatSection from "@/components/room/chat/ChatSection";
 
 export default function RoomDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const resolvedParams = use(params);
