@@ -4,7 +4,7 @@ import { use, useEffect, useState, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { Client } from "@stomp/stompjs";
 import { toast } from "sonner";
-import { useLocale, useTranslations } from "next-intl"; // 🌟 번역 훅 추가
+import { useLocale, useTranslations } from "next-intl";
 
 import RoomActionHeader from "@/components/room/RoomActionHeader";
 import RoomMovieBanner from "@/components/room/RoomMovieBanner";
@@ -15,7 +15,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
     const roomId = resolvedParams.id;
     const { data: session } = useSession();
 
-    // 🌟 언어 및 번역기 세팅
     const locale = useLocale();
     const tmdbLang = locale === 'en' ? 'en-US' : 'ko-KR';
     const t = useTranslations("RoomDetail");
@@ -47,6 +46,9 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
     const hasEntered = useRef(false);
     const isFirstLoad = useRef(true);
 
+    // 🌟 1. 현재 답장 중인 메시지 정보를 담을 상태 추가!
+    const [replyingTo, setReplyingTo] = useState<any | null>(null);
+
     useEffect(() => {
         const fetchRoomData = async () => {
             try {
@@ -56,7 +58,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
 
                 const apiKey = process.env.NEXT_PUBLIC_TMDB_API_KEY;
                 if (roomData.movieId && !roomData.movieId.startsWith("m_")) {
-                    // 🌟 언어 변수(tmdbLang) 동적 적용
                     const tmdbRes = await fetch(
                         `https://api.themoviedb.org/3/movie/${roomData.movieId}?language=${tmdbLang}&append_to_response=credits&api_key=${apiKey}`
                     );
@@ -70,10 +71,10 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                         roomData.genres = tmdbData.genres?.map((g: any) => g.name);
 
                         const director = tmdbData.credits?.crew?.find((c: any) => c.job === 'Director');
-                        roomData.director = director ? director.name : t('noInfo'); // 번역 적용
+                        roomData.director = director ? director.name : t('noInfo');
 
                         const cast = tmdbData.credits?.cast?.slice(0, 3).map((c: any) => c.name);
-                        roomData.cast = cast?.length > 0 ? cast.join(', ') : t('noInfo'); // 번역 적용
+                        roomData.cast = cast?.length > 0 ? cast.join(', ') : t('noInfo');
                     }
                 }
                 setRoom(roomData);
@@ -85,7 +86,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
             }
         };
         fetchRoomData();
-    }, [roomId, tmdbLang, t]); // 🌟 언어가 바뀌면 영화 정보를 다시 불러옵니다!
+    }, [roomId, tmdbLang, t]);
 
     useEffect(() => {
         if (!roomId) return;
@@ -256,11 +257,23 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
 
     const handleSendMessage = () => {
         if (!inputMessage.trim() || !client || !client.connected || !session || room?.status === 'CLOSED') return;
+
+        // 🌟 2. 메시지 보낼 때 parentMessageId 추가!
         client.publish({
             destination: "/pub/chat/message",
-            body: JSON.stringify({ roomId: Number(roomId), sender: session.user?.name || t('anonymous'), content: inputMessage.trim(), time: new Date().toISOString(), type: "TALK" }),
+            body: JSON.stringify({
+                roomId: Number(roomId),
+                sender: session.user?.name || t('anonymous'),
+                content: inputMessage.trim(),
+                time: new Date().toISOString(),
+                type: "TALK",
+                parentMessageId: replyingTo?.id || null // 👈 이 부분 추가!
+            }),
         });
+
         setInputMessage("");
+        setReplyingTo(null); // 🌟 3. 전송 완료 후 답장 모드 해제
+
         setIsAutoScroll(true);
         setShowNewMessageBtn(false);
         if (textareaRef.current) textareaRef.current.style.height = "52px";
@@ -329,6 +342,10 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                     onKeyDown={handleKeyDown}
                     onSendMessage={handleSendMessage}
                     onScrollToBottom={scrollToBottom}
+                    // 🌟 4. ChatSection으로 답장 관련 함수와 상태 넘겨주기
+                    replyingTo={replyingTo}
+                    onReply={setReplyingTo}
+                    onCancelReply={() => setReplyingTo(null)}
                 />
             )}
         </div>

@@ -21,12 +21,18 @@ interface ChatSectionProps {
     onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
     onSendMessage: () => void;
     onScrollToBottom: () => void;
+
+    // 🌟 1. page.tsx에서 넘겨준 답장 관련 Props 추가! (타입 에러 해결)
+    replyingTo: any | null;
+    onReply: (msg: any) => void;
+    onCancelReply: () => void;
 }
 
 export default function ChatSection({
                                         room, session, client, messages, inputMessage, isLoadingMore, showNewMessageBtn,
                                         typingUsers, chatContainerRef, messagesEndRef, textareaRef,
-                                        onScroll, onTyping, onKeyDown, onSendMessage, onScrollToBottom
+                                        onScroll, onTyping, onKeyDown, onSendMessage, onScrollToBottom,
+                                        replyingTo, onReply, onCancelReply // 🌟 Props 받아오기
                                     }: ChatSectionProps) {
 
     const t = useTranslations("RoomDetail");
@@ -41,7 +47,6 @@ export default function ChatSection({
         }
     }, [room?.pinnedMessage]);
 
-    // 🌟 누구나 핀(📌) 버튼을 누를 수 있습니다!
     const handlePinMessage = async (content: string) => {
         const confirmMsg = locale === 'en'
             ? (content ? "Pin this message to the top?" : "Unpin the current message?")
@@ -78,17 +83,14 @@ export default function ChatSection({
                 </span>
             </div>
 
-            {/* 고정 메시지(Pinned Message) 배너 UI */}
             {localPinnedMessage && (
                 <div className="bg-zinc-800/95 backdrop-blur-md border-b border-zinc-700 px-6 py-3.5 flex items-start gap-3 shrink-0 z-10 shadow-lg animate-in slide-in-from-top-2">
                     <span className="text-lg animate-bounce">📌</span>
                     <div className="flex flex-col w-full">
                         <div className="flex items-center justify-between mb-1">
-                            {/* 🌟 텍스트 변경: 누구나 올릴 수 있으므로 '라운지 공지사항'으로 변경 */}
                             <span className="text-[10px] font-black text-[#00E676] uppercase tracking-widest">
                                 {locale === 'en' ? "Pinned Message" : "라운지 공지사항"}
                             </span>
-                            {/* 🌟 누구나 공지를 내릴 수 있도록 조건문 삭제 */}
                             <button onClick={() => handlePinMessage("")} className="text-[10px] font-bold text-zinc-500 hover:text-red-400 transition-colors underline underline-offset-2">
                                 {locale === 'en' ? "Unpin" : "내리기"}
                             </button>
@@ -136,6 +138,11 @@ export default function ChatSection({
 
                         const isMe = session?.user?.name === msg.sender;
 
+                        // 🌟 2. 부모 메시지 정보 찾기 (이 메시지가 답장인 경우)
+                        const parentMsg = msg.parentMessageId
+                            ? messages.find(m => m.id === msg.parentMessageId)
+                            : null;
+
                         return (
                             <div key={idx} className="flex flex-col animate-in fade-in slide-in-from-bottom-3 duration-300 ease-out">
                                 {isNewDay && (
@@ -163,19 +170,43 @@ export default function ChatSection({
                                                 <span className="text-[11px] font-bold text-zinc-500">
                                                     {msg.sender}
                                                 </span>
-                                                {/* 🌟 누구나 마우스 호버 시 📌 버튼을 볼 수 있도록 isHost 조건문 삭제! */}
-                                                <button
-                                                    onClick={() => handlePinMessage(msg.content)}
-                                                    className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] bg-zinc-800 hover:bg-zinc-700 px-1.5 py-0.5 rounded text-zinc-300 shadow-sm"
-                                                    title={locale === 'en' ? "Pin message" : "이 메시지 공지로 등록"}
-                                                >
-                                                    📌
-                                                </button>
+                                                <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                                                    {/* 🌟 3. 답장(↩️) 버튼 추가 */}
+                                                    <button
+                                                        onClick={() => onReply(msg)}
+                                                        className="text-[10px] bg-zinc-800 hover:bg-zinc-700 px-1.5 py-0.5 rounded text-zinc-300 shadow-sm"
+                                                        title={locale === 'en' ? "Reply" : "답장하기"}
+                                                    >
+                                                        ↩️
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handlePinMessage(msg.content)}
+                                                        className="text-[10px] bg-zinc-800 hover:bg-zinc-700 px-1.5 py-0.5 rounded text-zinc-300 shadow-sm"
+                                                        title={locale === 'en' ? "Pin message" : "이 메시지 공지로 등록"}
+                                                    >
+                                                        📌
+                                                    </button>
+                                                </div>
                                             </div>
 
-                                            <div className={`py-2.5 px-4 shadow-sm inline-block leading-relaxed whitespace-pre-wrap text-sm break-words ${isMe ? 'bg-white text-black rounded-[1.25rem] rounded-tr-sm font-medium' : 'bg-zinc-900 border border-zinc-800 text-zinc-200 rounded-[1.25rem] rounded-tl-sm'}`}>
-                                                {msg.content}
+                                            <div className={`py-2.5 px-4 shadow-sm inline-block leading-relaxed whitespace-pre-wrap text-sm break-words flex flex-col ${isMe ? 'bg-white text-black rounded-[1.25rem] rounded-tr-sm font-medium' : 'bg-zinc-900 border border-zinc-800 text-zinc-200 rounded-[1.25rem] rounded-tl-sm'}`}>
+
+                                                {/* 🌟 4. 답장일 경우 인용구(Quote) 말풍선 렌더링 */}
+                                                {msg.parentMessageId && (
+                                                    <div className={`mb-2 px-3 py-1.5 rounded-lg text-xs border-l-2 ${isMe ? 'bg-zinc-200/60 border-zinc-400 text-zinc-700' : 'bg-zinc-800/80 border-zinc-500 text-zinc-400'} line-clamp-2`}>
+                                                        <span className="font-bold mr-1.5">
+                                                            {parentMsg ? parentMsg.sender : locale === 'en' ? "Someone" : "누군가"}{locale === 'en' ? ":" : "에게 답장:"}
+                                                        </span>
+                                                        <span className="opacity-80">
+                                                            {parentMsg ? parentMsg.content : locale === 'en' ? "Message not found." : "이전 메시지를 찾을 수 없습니다."}
+                                                        </span>
+                                                    </div>
+                                                )}
+
+                                                {/* 실제 메시지 내용 */}
+                                                <span>{msg.content}</span>
                                             </div>
+
                                             {displayTime && (
                                                 <span className={`text-[9px] text-zinc-600 mt-1 block font-medium ${isMe ? 'mr-1 text-right' : 'ml-1'}`}>
                                                     {displayTime}
@@ -208,14 +239,30 @@ export default function ChatSection({
             </div>
 
             {showNewMessageBtn && (
-                <div className="absolute bottom-24 left-0 w-full flex justify-center z-30 animate-in slide-in-from-bottom-2 fade-in duration-200">
+                <div className="absolute bottom-28 left-0 w-full flex justify-center z-30 animate-in slide-in-from-bottom-2 fade-in duration-200">
                     <Button onClick={onScrollToBottom} className="bg-white/90 hover:bg-white backdrop-blur-md text-black px-6 rounded-full shadow-lg font-bold flex items-center gap-2 text-xs">
                         <span>👇</span> {t('newMessage')}
                     </Button>
                 </div>
             )}
 
-            <div className="p-4 bg-zinc-900/80 backdrop-blur-xl border-t border-zinc-800 shrink-0 z-20">
+            <div className="relative p-4 bg-zinc-900/80 backdrop-blur-xl border-t border-zinc-800 shrink-0 z-20 flex flex-col">
+
+                {/* 🌟 5. 입력창 상단에 뜨는 "답장 중..." 프리뷰 바 */}
+                {replyingTo && (
+                    <div className="flex items-center justify-between bg-zinc-800/90 px-4 py-2.5 rounded-t-2xl border-t border-x border-zinc-700 text-xs w-full max-w-full truncate mb-2 animate-in slide-in-from-bottom-2">
+                        <div className="flex items-center gap-2 truncate text-zinc-300">
+                            <span className="text-[10px]">↩️</span>
+                            <span className="font-bold text-[#00E676]">{replyingTo.sender}</span>
+                            <span className="text-zinc-400">{locale === 'en' ? "Replying to" : "님에게 답장 중"}</span>
+                            <span className="truncate opacity-70 ml-1">"{replyingTo.content}"</span>
+                        </div>
+                        <button onClick={onCancelReply} className="text-zinc-400 hover:text-white ml-2 shrink-0 bg-zinc-700/50 hover:bg-zinc-600 w-5 h-5 rounded-full flex items-center justify-center transition-colors">
+                            ✕
+                        </button>
+                    </div>
+                )}
+
                 <div className="flex items-end gap-3">
                     <textarea
                         ref={textareaRef}
@@ -226,7 +273,7 @@ export default function ChatSection({
                         disabled={!session || !client?.connected || room?.status === 'CLOSED'}
                         rows={1}
                         style={{ height: "52px", minHeight: "52px" }}
-                        className="flex-1 px-5 py-3.5 bg-zinc-950 border border-zinc-800 rounded-2xl focus:outline-none focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600 disabled:opacity-50 resize-none overflow-y-auto leading-relaxed text-sm text-white placeholder:text-zinc-600 transition-colors"
+                        className={`flex-1 px-5 py-3.5 bg-zinc-950 border border-zinc-800 focus:outline-none focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600 disabled:opacity-50 resize-none overflow-y-auto leading-relaxed text-sm text-white placeholder:text-zinc-600 transition-colors ${replyingTo ? 'rounded-b-2xl rounded-t-none border-t-0' : 'rounded-2xl'}`}
                     />
                     <Button
                         onClick={onSendMessage}
