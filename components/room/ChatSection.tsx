@@ -25,13 +25,16 @@ interface ChatSectionProps {
     replyingTo: any | null;
     onReply: (msg: any) => void;
     onCancelReply: () => void;
+
+    // 🌟 1. onLike Props 추가
+    onLike: (msgId: number) => void;
 }
 
 export default function ChatSection({
                                         room, session, client, messages, inputMessage, isLoadingMore, showNewMessageBtn,
                                         typingUsers, chatContainerRef, messagesEndRef, textareaRef,
                                         onScroll, onTyping, onKeyDown, onSendMessage, onScrollToBottom,
-                                        replyingTo, onReply, onCancelReply
+                                        replyingTo, onReply, onCancelReply, onLike // 🌟 가져오기
                                     }: ChatSectionProps) {
 
     const t = useTranslations("RoomDetail");
@@ -39,8 +42,6 @@ export default function ChatSection({
     const timeFormatLang = locale === 'en' ? 'en-US' : 'ko-KR';
 
     const [localPinnedMessage, setLocalPinnedMessage] = useState<string | null>(null);
-
-    // 🌟 1. 차단(가리기)한 유저 목록을 저장하는 State 추가
     const [mutedUsers, setMutedUsers] = useState<Set<string>>(new Set());
 
     useEffect(() => {
@@ -73,7 +74,6 @@ export default function ChatSection({
         }
     };
 
-    // 🌟 차단된 유저를 제외한 '타이핑 중' 유저 목록
     const visibleTypingUsers = Array.from(typingUsers).filter(user => !mutedUsers.has(user));
 
     return (
@@ -143,7 +143,6 @@ export default function ChatSection({
 
                         const isMe = session?.user?.name === msg.sender;
 
-                        // 🌟 2. 차단된 유저인지 확인
                         if (mutedUsers.has(msg.sender)) {
                             return (
                                 <div key={idx} className="flex justify-center my-1 animate-in fade-in duration-300">
@@ -197,6 +196,18 @@ export default function ChatSection({
                                                     {msg.sender}
                                                 </span>
                                                 <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+
+                                                    {/* 🌟 2. 좋아요(👍) 버튼 추가 */}
+                                                    {msg.id && (
+                                                        <button
+                                                            onClick={() => onLike(msg.id)}
+                                                            className="text-[10px] bg-zinc-800 hover:bg-zinc-700 px-1.5 py-0.5 rounded text-zinc-300 shadow-sm"
+                                                            title={locale === 'en' ? "Like" : "공감하기"}
+                                                        >
+                                                            👍
+                                                        </button>
+                                                    )}
+
                                                     <button
                                                         onClick={() => onReply(msg)}
                                                         className="text-[10px] bg-zinc-800 hover:bg-zinc-700 px-1.5 py-0.5 rounded text-zinc-300 shadow-sm"
@@ -211,8 +222,6 @@ export default function ChatSection({
                                                     >
                                                         📌
                                                     </button>
-
-                                                    {/* 🌟 3. 남의 메시지일 경우에만 🚫 (차단) 버튼 표시 */}
                                                     {!isMe && (
                                                         <button
                                                             onClick={() => {
@@ -233,24 +242,33 @@ export default function ChatSection({
                                                 </div>
                                             </div>
 
-                                            <div className={`py-2.5 px-4 shadow-sm inline-block leading-relaxed whitespace-pre-wrap text-sm break-words flex flex-col ${isMe ? 'bg-white text-black rounded-[1.25rem] rounded-tr-sm font-medium' : 'bg-zinc-900 border border-zinc-800 text-zinc-200 rounded-[1.25rem] rounded-tl-sm'}`}>
+                                            {/* 🌟 3. 말풍선 및 하단 좋아요 배지 영역 */}
+                                            <div className="relative">
+                                                <div className={`py-2.5 px-4 shadow-sm inline-block leading-relaxed whitespace-pre-wrap text-sm break-words flex flex-col ${isMe ? 'bg-white text-black rounded-[1.25rem] rounded-tr-sm font-medium' : 'bg-zinc-900 border border-zinc-800 text-zinc-200 rounded-[1.25rem] rounded-tl-sm'}`}>
+                                                    {msg.parentMessageId && (
+                                                        <div className={`mb-2 px-3 py-1.5 rounded-lg text-xs border-l-2 ${isMe ? 'bg-zinc-200/60 border-zinc-400 text-zinc-700' : 'bg-zinc-800/80 border-zinc-500 text-zinc-400'} line-clamp-2`}>
+                                                            <span className="font-bold mr-1.5">
+                                                                {parentMsg ? parentMsg.sender : locale === 'en' ? "Someone" : "누군가"}{locale === 'en' ? ":" : "에게 답장:"}
+                                                            </span>
+                                                            <span className="opacity-80">
+                                                                {parentMsg ? parentMsg.content : locale === 'en' ? "Message not found." : "이전 메시지를 찾을 수 없습니다."}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                    <span>{msg.content}</span>
+                                                </div>
 
-                                                {msg.parentMessageId && (
-                                                    <div className={`mb-2 px-3 py-1.5 rounded-lg text-xs border-l-2 ${isMe ? 'bg-zinc-200/60 border-zinc-400 text-zinc-700' : 'bg-zinc-800/80 border-zinc-500 text-zinc-400'} line-clamp-2`}>
-                                                        <span className="font-bold mr-1.5">
-                                                            {parentMsg ? parentMsg.sender : locale === 'en' ? "Someone" : "누군가"}{locale === 'en' ? ":" : "에게 답장:"}
-                                                        </span>
-                                                        <span className="opacity-80">
-                                                            {parentMsg ? parentMsg.content : locale === 'en' ? "Message not found." : "이전 메시지를 찾을 수 없습니다."}
-                                                        </span>
+                                                {/* 🌟 4. 좋아요가 1개 이상일 때 나타나는 예쁜 배지 UI */}
+                                                {(msg.likeCount || 0) > 0 && (
+                                                    <div className={`absolute -bottom-3 ${isMe ? 'left-2' : 'right-2'} bg-zinc-800 border border-zinc-700 rounded-full px-2 py-0.5 shadow-md flex items-center gap-1 animate-in zoom-in duration-200 z-10`}>
+                                                        <span className="text-[10px]">❤️</span>
+                                                        <span className="text-[10px] font-bold text-white">{msg.likeCount}</span>
                                                     </div>
                                                 )}
-
-                                                <span>{msg.content}</span>
                                             </div>
 
                                             {displayTime && (
-                                                <span className={`text-[9px] text-zinc-600 mt-1 block font-medium ${isMe ? 'mr-1 text-right' : 'ml-1'}`}>
+                                                <span className={`text-[9px] text-zinc-600 mt-2 block font-medium ${isMe ? 'mr-1 text-right' : 'ml-1'}`}>
                                                     {displayTime}
                                                 </span>
                                             )}
@@ -262,7 +280,6 @@ export default function ChatSection({
                     })
                 )}
 
-                {/* 🌟 4. 차단된 유저를 제외한 visibleTypingUsers 배열 사용 */}
                 {visibleTypingUsers.length > 0 && (
                     <div className="flex gap-3 mb-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
                         <div className="w-9 h-9 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-base shrink-0 shadow-sm">✍️</div>

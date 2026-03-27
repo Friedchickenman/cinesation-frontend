@@ -46,7 +46,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
     const hasEntered = useRef(false);
     const isFirstLoad = useRef(true);
 
-    // 🌟 1. 현재 답장 중인 메시지 정보를 담을 상태 추가!
     const [replyingTo, setReplyingTo] = useState<any | null>(null);
 
     useEffect(() => {
@@ -168,6 +167,14 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                         return;
                     }
 
+                    // 🌟 1. "LIKE" 이벤트 수신 처리
+                    if (receivedMsg.type === "LIKE") {
+                        setMessages(prev => prev.map(msg =>
+                            msg.id === receivedMsg.id ? { ...msg, likeCount: receivedMsg.likeCount } : msg
+                        ));
+                        return;
+                    }
+
                     setMessages((prev) => [...prev, receivedMsg]);
 
                     if (receivedMsg.type === "TALK") {
@@ -258,7 +265,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
     const handleSendMessage = () => {
         if (!inputMessage.trim() || !client || !client.connected || !session || room?.status === 'CLOSED') return;
 
-        // 🌟 2. 메시지 보낼 때 parentMessageId 추가!
         client.publish({
             destination: "/pub/chat/message",
             body: JSON.stringify({
@@ -267,16 +273,32 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                 content: inputMessage.trim(),
                 time: new Date().toISOString(),
                 type: "TALK",
-                parentMessageId: replyingTo?.id || null // 👈 이 부분 추가!
+                parentMessageId: replyingTo?.id || null
             }),
         });
 
         setInputMessage("");
-        setReplyingTo(null); // 🌟 3. 전송 완료 후 답장 모드 해제
+        setReplyingTo(null);
 
         setIsAutoScroll(true);
         setShowNewMessageBtn(false);
         if (textareaRef.current) textareaRef.current.style.height = "52px";
+    };
+
+    // 🌟 2. 좋아요(Like) 웹소켓 발송 함수
+    const handleLikeMessage = (msgId: number) => {
+        if (!client || !client.connected || !session || room?.status === 'CLOSED') return;
+        client.publish({
+            destination: "/pub/chat/message",
+            body: JSON.stringify({
+                roomId: Number(roomId),
+                sender: session.user?.name || t('anonymous'),
+                content: "",
+                time: new Date().toISOString(),
+                type: "LIKE",
+                id: msgId
+            }),
+        });
     };
 
     const handleCopyLink = () => {
@@ -342,10 +364,11 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                     onKeyDown={handleKeyDown}
                     onSendMessage={handleSendMessage}
                     onScrollToBottom={scrollToBottom}
-                    // 🌟 4. ChatSection으로 답장 관련 함수와 상태 넘겨주기
                     replyingTo={replyingTo}
                     onReply={setReplyingTo}
                     onCancelReply={() => setReplyingTo(null)}
+                    // 🌟 3. ChatSection에 onLike 전달!
+                    onLike={handleLikeMessage}
                 />
             )}
         </div>
