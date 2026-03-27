@@ -21,9 +21,8 @@ export default function RoomMovieBanner({ room, isLoading, error }: RoomMovieBan
     useEffect(() => {
         if (!room || room.status === 'CLOSED') return;
 
-        // 방 생성일(createdAt) 기준으로 7일 뒤(타겟 타임)를 계산합니다.
-        // (만약 백엔드에서 createdAt을 안 주면, 현재 시간 기준으로 작동하도록 임시 세팅)
-        const createdDate = room.createdAt ? new Date(room.createdAt) : new Date();
+        // 🌟 핵심 해결 포인트: 백엔드 필드명인 created_at으로 수정!
+        const createdDate = room.created_at ? new Date(room.created_at) : new Date();
         const targetDate = new Date(createdDate.getTime() + 7 * 24 * 60 * 60 * 1000);
 
         const timer = setInterval(() => {
